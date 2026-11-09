@@ -2,8 +2,8 @@
   "name": "Content Digest – YouTube, X and newsletter summaries",
   "nodes": [
     {
-      "id": "2f94676e-9664-5e09-a369-44c3dd47cac3",
-      "name": "Ütemezés (6 óránként)",
+      "id": "a2076125-0f57-546b-8462-c7a89c408d62",
+      "name": "Schedule (every 6 hours)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -22,8 +22,8 @@
       }
     },
     {
-      "id": "b1ffafaf-e1d4-5b57-b963-32482c44a2bf",
-      "name": "Kézi indítás",
+      "id": "ea0a67e2-c91e-545f-bd50-1f0837c9b16e",
+      "name": "Manual trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
@@ -33,8 +33,8 @@
       "parameters": {}
     },
     {
-      "id": "6820e9ff-acb3-5e23-ae92-c2a8666ba62a",
-      "name": "⚙️ Beállítások",
+      "id": "f5458b19-a8a6-5435-8494-e5571e050bb0",
+      "name": "⚙️ Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -42,12 +42,12 @@
         340
       ],
       "parameters": {
-        "jsCode": "// ⚙️ BEÁLLÍTÁSOK — csak ezt a node-ot kell szerkeszteni.\n// Új forrás felvétele = új elem a megfelelő listában. Üres lista = az a forrás kimarad.\nreturn [{\n  json: {\n    // YouTube-csatornák: @handle vagy UC... kezdetű csatornaazonosító\n    youtubeChannels: [\n      '@tizeslista_hu',\n      'UCjFCzjkgSShdRZIVJx3SSlQ',\n    ],\n\n    // X-fiókok felhasználóneve (@ nélkül)\n    xAccounts: [\n      'ChifoiCristian',\n    ],\n\n    // Hírlevelek: a feladó e-mail-címe (a Gmail-fiókodból olvassuk)\n    emailSenders: [\n      'newsletter@example.com',\n    ],\n\n    lookbackHours: 24,       // ennél régebbi tartalom nem kerül be (első futásnál is)\n    maxItemsPerSource: 5,    // forrásonként legfeljebb ennyi új elem futásonként\n    maxCharsPerItem: 12000,  // elemenként ennyi szöveg megy tovább az LLM-nek\n    maxImages: 8,            // ennyi X-képet (grafikont) kap meg összesen a modell\n\n    model: 'claude-sonnet-5-5',\n    reportLanguage: 'magyar',\n    telegramChatId: '-100XXXXXXXXXX',  // csatorna vagy chat azonosítója\n  },\n}];\n"
+        "jsCode": "// ⚙️ SETTINGS — this is the only node you need to edit.\n// To add a source, add an item to the matching list. An empty list skips that source.\nreturn [{\n  json: {\n    // YouTube channels: @handle or a channel ID starting with UC\n    youtubeChannels: [\n      '@tizeslista_hu',\n      'UCjFCzjkgSShdRZIVJx3SSlQ',\n    ],\n\n    // X usernames (without the @)\n    xAccounts: [\n      'ChifoiCristian',\n    ],\n\n    // Newsletters: the sender's email address (read from your Gmail account)\n    emailSenders: [\n      'newsletter@example.com',\n    ],\n\n    lookbackHours: 24,       // older content is skipped, even on the first run\n    maxItemsPerSource: 5,    // max new items per source per run\n    maxCharsPerItem: 12000,  // max characters per item sent to the LLM\n    maxImages: 8,            // max X images (charts) sent to the model\n\n    model: 'claude-sonnet-5-5',\n    reportLanguage: 'Hungarian',  // language of the summary\n    telegramChatId: '-100XXXXXXXXXX',  // channel or chat ID\n  },\n}];\n"
       }
     },
     {
-      "id": "7f8cfe24-046d-5bd7-a395-27d94aa297e4",
-      "name": "YouTube: csatornák",
+      "id": "e802e7b0-02a4-589d-9e60-2557f5baca78",
+      "name": "YouTube: channels",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -55,12 +55,12 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Egy kimeneti elem csatornánként. A @handle-t és a UC... azonosítót is elfogadjuk.\nconst cfg = $('⚙️ Beállítások').first().json;\nreturn (cfg.youtubeChannels || [])\n  .map(c => String(c).trim())\n  .filter(Boolean)\n  .map(c => ({\n    json: {\n      channel: c,\n      lookup: c.startsWith('UC')\n        ? `id=${c}`\n        : `forHandle=${encodeURIComponent(c.startsWith('@') ? c : '@' + c)}`,\n    },\n  }));\n"
+        "jsCode": "// One output item per channel. Accepts both @handles and UC... channel IDs.\nconst cfg = $('⚙️ Settings').first().json;\nreturn (cfg.youtubeChannels || [])\n  .map(c => String(c).trim())\n  .filter(Boolean)\n  .map(c => ({\n    json: {\n      channel: c,\n      lookup: c.startsWith('UC')\n        ? `id=${c}`\n        : `forHandle=${encodeURIComponent(c.startsWith('@') ? c : '@' + c)}`,\n    },\n  }));\n"
       }
     },
     {
-      "id": "a4aad445-964a-5d79-9469-9636ec131ffa",
-      "name": "YouTube: feltöltési lista",
+      "id": "a48eb536-6356-53a3-8513-c82e9e6579bb",
+      "name": "YouTube: uploads playlist",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -78,8 +78,8 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "15693df0-2365-5a8a-b557-5962302d9ae6",
-      "name": "YouTube: legújabb videók",
+      "id": "73ca51a0-b629-58a8-a728-a3064e4923c9",
+      "name": "YouTube: latest videos",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -106,7 +106,7 @@
             },
             {
               "name": "maxResults",
-              "value": "={{ $('⚙️ Beállítások').first().json.maxItemsPerSource }}"
+              "value": "={{ $('⚙️ Settings').first().json.maxItemsPerSource }}"
             }
           ]
         }
@@ -114,8 +114,8 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "9fd6eb71-8ea0-588c-adb1-21d32453362a",
-      "name": "YouTube: normalizálás",
+      "id": "30bb15dd-2e50-559c-bd5e-cd6425a8891b",
+      "name": "YouTube: normalize",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -123,12 +123,12 @@
         0
       ],
       "parameters": {
-        "jsCode": "// A playlistItems-válaszokból egységes tartalomelemek, a lookback ablakon belül.\nconst cfg = $('⚙️ Beállítások').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst out = [];\nfor (const res of $input.all()) {\n  for (const it of res.json.items || []) {\n    const s = it.snippet || {};\n    const videoId = s.resourceId?.videoId;\n    if (!videoId || Date.parse(s.publishedAt) < since) continue;\n    out.push({\n      json: {\n        uid: `youtube:${videoId}`,\n        source: 'youtube',\n        author: s.channelTitle || '',\n        title: s.title || '',\n        url: `https://www.youtube.com/watch?v=${videoId}`,\n        published: new Date(s.publishedAt).toISOString(),\n        text: s.description || '',\n        videoId,\n      },\n    });\n  }\n}\nreturn out;\n"
+        "jsCode": "// Turn playlistItems responses into uniform content items within the lookback window.\nconst cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst out = [];\nfor (const res of $input.all()) {\n  for (const it of res.json.items || []) {\n    const s = it.snippet || {};\n    const videoId = s.resourceId?.videoId;\n    if (!videoId || Date.parse(s.publishedAt) < since) continue;\n    out.push({\n      json: {\n        uid: `youtube:${videoId}`,\n        source: 'youtube',\n        author: s.channelTitle || '',\n        title: s.title || '',\n        url: `https://www.youtube.com/watch?v=${videoId}`,\n        published: new Date(s.publishedAt).toISOString(),\n        text: s.description || '',\n        videoId,\n      },\n    });\n  }\n}\nreturn out;\n"
       }
     },
     {
-      "id": "3e343849-662d-5d21-828d-c8d19b321dfa",
-      "name": "YouTube: csak az új videók",
+      "id": "5daaea12-d308-5ba8-91d6-03f31df7de7d",
+      "name": "YouTube: new videos only",
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 2,
       "position": [
@@ -143,8 +143,8 @@
       }
     },
     {
-      "id": "4ab19484-9c6a-5ae5-b740-4ce45dc3ee93",
-      "name": "YouTube: felirat (Supadata)",
+      "id": "b082870b-7500-5230-86e5-42b82d060d34",
+      "name": "YouTube: transcript (Supadata)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -175,8 +175,8 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "69932f60-c00d-578c-9486-dd3c1543fc72",
-      "name": "YouTube: felirat hozzáfűzése",
+      "id": "0dfbf5d9-9099-51f1-89a8-d4b16d7918e5",
+      "name": "YouTube: attach transcript",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -184,12 +184,12 @@
         0
       ],
       "parameters": {
-        "jsCode": "// A felirat-kérés kimenete sorrendben megfelel a bemenő videóknak.\n// Ha nincs felirat (vagy nincs Supadata-kulcs), a videó leírása marad a szöveg.\nconst videos = $('YouTube: csak az új videók').all();\nreturn $input.all().map((res, i) => {\n  const video = videos[i].json;\n  const transcript = typeof res.json.content === 'string' ? res.json.content.trim() : '';\n  return {\n    json: {\n      ...video,\n      text: transcript || video.text,\n      hasTranscript: Boolean(transcript),\n    },\n  };\n});\n"
+        "jsCode": "// The transcript responses come back in the same order as the input videos.\n// Without a transcript (or without a Supadata key) the video description is used.\nconst videos = $('YouTube: new videos only').all();\nreturn $input.all().map((res, i) => {\n  const video = videos[i].json;\n  const transcript = typeof res.json.content === 'string' ? res.json.content.trim() : '';\n  return {\n    json: {\n      ...video,\n      text: transcript || video.text,\n      hasTranscript: Boolean(transcript),\n    },\n  };\n});\n"
       }
     },
     {
-      "id": "56e92a39-70fb-5d52-9359-a88b8777aeb9",
-      "name": "X: fiókok",
+      "id": "1d60268b-5842-5a31-99d1-f307ac52f955",
+      "name": "X: accounts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -197,12 +197,12 @@
         340
       ],
       "parameters": {
-        "jsCode": "const cfg = $('⚙️ Beállítások').first().json;\nreturn (cfg.xAccounts || [])\n  .map(u => String(u).trim().replace(/^@/, ''))\n  .filter(Boolean)\n  .map(userName => ({ json: { userName } }));\n"
+        "jsCode": "const cfg = $('⚙️ Settings').first().json;\nreturn (cfg.xAccounts || [])\n  .map(u => String(u).trim().replace(/^@/, ''))\n  .filter(Boolean)\n  .map(userName => ({ json: { userName } }));\n"
       }
     },
     {
-      "id": "2121b410-1ab8-562f-827c-70ec3b70c8f4",
-      "name": "X: legutóbbi posztok",
+      "id": "da0a9e74-04fd-5608-8b00-69d9ffd2da8f",
+      "name": "X: latest posts",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -233,8 +233,8 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "7690920b-5102-540c-9f9f-de04228ec06a",
-      "name": "X: normalizálás",
+      "id": "3e28f331-bab9-5f86-95bb-9e9394168e4b",
+      "name": "X: normalize",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -242,12 +242,12 @@
         340
       ],
       "parameters": {
-        "jsCode": "// twitterapi.io válasz → egységes elemek. A tweetek helye verziónként eltér:\n// néha \"tweets\", néha \"data.tweets\". A képeket (grafikonokat) URL-ként visszük tovább.\nconst cfg = $('⚙️ Beállítások').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst accounts = $('X: fiókok').all();\nconst out = [];\n$input.all().forEach((res, i) => {\n  const payload = res.json || {};\n  const tweets = payload.tweets || payload.data?.tweets || [];\n  const user = accounts[i]?.json.userName || '';\n  for (const tw of tweets.slice(0, cfg.maxItemsPerSource)) {\n    const created = Date.parse(tw.createdAt);\n    if (!(created >= since)) continue;\n    const media = tw.extendedEntities?.media || tw.entities?.media || [];\n    out.push({\n      json: {\n        uid: `x:${tw.id}`,\n        source: 'x',\n        author: tw.author?.name ? `${tw.author.name} (@${user})` : `@${user}`,\n        title: (tw.text || '').slice(0, 90).replace(/\\n/g, ' '),\n        url: tw.url || `https://x.com/${user}/status/${tw.id}`,\n        published: new Date(created).toISOString(),\n        text: tw.text || '',\n        images: media.filter(m => m.type === 'photo').map(m => m.media_url_https),\n      },\n    });\n  }\n});\nreturn out;\n"
+        "jsCode": "// twitterapi.io response → uniform items. Tweets live under \"tweets\" or \"data.tweets\"\n// depending on the API version. Images (charts) are passed on as URLs.\nconst cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst accounts = $('X: accounts').all();\nconst out = [];\n$input.all().forEach((res, i) => {\n  const payload = res.json || {};\n  const tweets = payload.tweets || payload.data?.tweets || [];\n  const user = accounts[i]?.json.userName || '';\n  for (const tw of tweets.slice(0, cfg.maxItemsPerSource)) {\n    const created = Date.parse(tw.createdAt);\n    if (!(created >= since)) continue;\n    const media = tw.extendedEntities?.media || tw.entities?.media || [];\n    out.push({\n      json: {\n        uid: `x:${tw.id}`,\n        source: 'x',\n        author: tw.author?.name ? `${tw.author.name} (@${user})` : `@${user}`,\n        title: (tw.text || '').slice(0, 90).replace(/\\n/g, ' '),\n        url: tw.url || `https://x.com/${user}/status/${tw.id}`,\n        published: new Date(created).toISOString(),\n        text: tw.text || '',\n        images: media.filter(m => m.type === 'photo').map(m => m.media_url_https),\n      },\n    });\n  }\n});\nreturn out;\n"
       }
     },
     {
-      "id": "9bfa8780-205d-5b99-ad85-0b79ba261f94",
-      "name": "X: csak az új posztok",
+      "id": "2195540d-ee98-5208-a0a1-80775506d947",
+      "name": "X: new posts only",
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 2,
       "position": [
@@ -262,8 +262,8 @@
       }
     },
     {
-      "id": "010a007c-dab0-500f-971a-7664d3608cf9",
-      "name": "E-mail: keresés",
+      "id": "1693dc40-7e45-58b7-b4b3-5ca80011d002",
+      "name": "Email: build search",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -271,12 +271,12 @@
         680
       ],
       "parameters": {
-        "jsCode": "// Gmail-keresés a feladókra. Üres lista esetén a hírlevél-ág kimarad.\nconst cfg = $('⚙️ Beállítások').first().json;\nconst senders = (cfg.emailSenders || []).map(s => String(s).trim()).filter(Boolean);\nif (!senders.length) return [];\nconst days = Math.max(1, Math.ceil(cfg.lookbackHours / 24));\nreturn [{ json: { q: `from:(${senders.join(' OR ')}) newer_than:${days}d` } }];\n"
+        "jsCode": "// Gmail search for the senders. With an empty list the newsletter branch is skipped.\nconst cfg = $('⚙️ Settings').first().json;\nconst senders = (cfg.emailSenders || []).map(s => String(s).trim()).filter(Boolean);\nif (!senders.length) return [];\nconst days = Math.max(1, Math.ceil(cfg.lookbackHours / 24));\nreturn [{ json: { q: `from:(${senders.join(' OR ')}) newer_than:${days}d` } }];\n"
       }
     },
     {
-      "id": "05662e4e-86df-5817-920f-4786c120c634",
-      "name": "Gmail: hírlevelek",
+      "id": "f3a29616-88c7-55be-a0a1-48100567ef1e",
+      "name": "Gmail: newsletters",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
@@ -296,8 +296,8 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "dc0f8a2e-6197-53a7-bce0-bd4b6381445d",
-      "name": "E-mail: normalizálás",
+      "id": "fa1c9327-44d9-52e6-a561-c64ea652bd8a",
+      "name": "Email: normalize",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -305,12 +305,12 @@
         680
       ],
       "parameters": {
-        "jsCode": "const cfg = $('⚙️ Beállítások').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nreturn $input.all()\n  .map(r => r.json)\n  .filter(m => m.id && !m.error)\n  .filter(m => !m.date || Date.parse(m.date) >= since)\n  .map(m => {\n    const from = m.from?.value?.[0] || {};\n    return {\n      json: {\n        uid: `email:${m.id}`,\n        source: 'email',\n        author: from.name || from.address || m.from?.text || '',\n        title: m.subject || '(tárgy nélkül)',\n        url: `https://mail.google.com/mail/u/0/#all/${m.id}`,\n        published: new Date(m.date || Date.now()).toISOString(),\n        text: (m.text || '').trim(),\n      },\n    };\n  });\n"
+        "jsCode": "const cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nreturn $input.all()\n  .map(r => r.json)\n  .filter(m => m.id && !m.error)\n  .filter(m => !m.date || Date.parse(m.date) >= since)\n  .map(m => {\n    const from = m.from?.value?.[0] || {};\n    return {\n      json: {\n        uid: `email:${m.id}`,\n        source: 'email',\n        author: from.name || from.address || m.from?.text || '',\n        title: m.subject || '(no subject)',\n        url: `https://mail.google.com/mail/u/0/#all/${m.id}`,\n        published: new Date(m.date || Date.now()).toISOString(),\n        text: (m.text || '').trim(),\n      },\n    };\n  });\n"
       }
     },
     {
-      "id": "f2b9220b-b35d-5969-a335-f74c4bd4e5d5",
-      "name": "E-mail: csak az új levelek",
+      "id": "79692fda-5b7f-56fa-a47e-35f1bcd2bd5d",
+      "name": "Email: new emails only",
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 2,
       "position": [
@@ -325,8 +325,8 @@
       }
     },
     {
-      "id": "d69e455f-6cf6-50f8-bc92-8e28ccfad9b8",
-      "name": "Összes új tartalom",
+      "id": "99cc51e2-6c95-5ca8-bdc1-514457f89f32",
+      "name": "All new content",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
@@ -338,8 +338,8 @@
       }
     },
     {
-      "id": "73a4ab57-e203-50f9-8854-fff601c273da",
-      "name": "Prompt összeállítása",
+      "id": "63cceedb-ae10-5937-834f-557524bd40b0",
+      "name": "Build prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -347,12 +347,12 @@
         340
       ],
       "parameters": {
-        "jsCode": "// Az összes új elemből egyetlen Claude-kérés: szöveg + az X-posztok képei.\nconst cfg = $('⚙️ Beállítások').first().json;\nconst items = $input.all().map(i => i.json).filter(j => j.uid);\nif (!items.length) return [];\n\nconst LABEL = { youtube: 'YouTube-videó', x: 'X-poszt', email: 'Hírlevél' };\nconst order = { youtube: 0, x: 1, email: 2 };\nitems.sort((a, b) =>\n  order[a.source] - order[b.source] ||\n  a.author.localeCompare(b.author) ||\n  a.published.localeCompare(b.published));\n\nconst system = `Tartalomfigyelő asszisztens vagy. A felhasználó által követett YouTube-csatornák,\nX-fiókok és hírlevelek új tartalmából ${cfg.reportLanguage} nyelvű összefoglalót írsz,\nami Telegram-üzenetként megy ki.\n\nSzabályok:\n- Forrásonként, azon belül szerzőnként csoportosíts. A csoport fejléce egy emoji és a szerző neve.\n- Minden elemnél: egy sor cím, utána 2-6 mondatban a lényeg — a fő állítások, érvek, számok,\n  dátumok, árszintek. Ha egy képen grafikon van, olvasd ki belőle a lényeges szinteket.\n- Az elem végén a link, külön sorban.\n- Csak azt írd le, ami a forrásban szerepel. Ha egy videónál csak a leírás volt elérhető,\n  ezt jelezd, és ne találd ki a tartalmát.\n- Sima szöveg, Markdown nélkül (a Telegram itt nem jeleníti meg): se **, se #, se táblázat.\n- Ne írj bevezetőt vagy zárást; a végén egy rövid \"Összegzés\" bekezdés jöhet, ha több elem van.`;\n\nconst blocks = items.map((it, n) => {\n  const note = it.source === 'youtube' && !it.hasTranscript\n    ? '\\n(Felirat nem érhető el, csak a videó leírása.)' : '';\n  const body = (it.text || '').slice(0, cfg.maxCharsPerItem);\n  return `### [${n + 1}] ${LABEL[it.source]} — ${it.author}\\nCím: ${it.title}\\n` +\n         `Dátum: ${it.published}\\nLink: ${it.url}${note}\\n\\n${body}`;\n});\n\nconst content = [{\n  type: 'text',\n  text: `${items.length} új tartalom érkezett:\\n\\n${blocks.join('\\n\\n---\\n\\n')}`,\n}];\nlet imageCount = 0;\nitems.forEach((it, n) => {\n  for (const url of (it.images || []).slice(0, 2)) {\n    if (imageCount >= cfg.maxImages) return;\n    content.push({ type: 'text', text: `A [${n + 1}] elemhez tartozó kép:` });\n    content.push({ type: 'image', source: { type: 'url', url } });\n    imageCount++;\n  }\n});\n\nreturn [{\n  json: {\n    itemCount: items.length,\n    body: {\n      model: cfg.model,\n      max_tokens: 4000,\n      system,\n      messages: [{ role: 'user', content }],\n    },\n  },\n}];\n"
+        "jsCode": "// One Claude request for all new items: text plus the images from X posts.\nconst cfg = $('⚙️ Settings').first().json;\nconst items = $input.all().map(i => i.json).filter(j => j.uid);\nif (!items.length) return [];\n\nconst LABEL = { youtube: 'YouTube video', x: 'X post', email: 'Newsletter' };\nconst order = { youtube: 0, x: 1, email: 2 };\nitems.sort((a, b) =>\n  order[a.source] - order[b.source] ||\n  a.author.localeCompare(b.author) ||\n  a.published.localeCompare(b.published));\n\nconst system = `You are a content digest assistant. From the new content of the YouTube\nchannels, X accounts and newsletters the user follows, you write a summary in\n${cfg.reportLanguage} that is sent as a Telegram message.\n\nRules:\n- Group by source, then by author. Each group starts with an emoji and the author's name.\n- For each item: a one-line title, then the gist in 2-6 sentences: the main claims, arguments,\n  numbers, dates and price levels. If an image contains a chart, read the key levels off it.\n- Put the link on its own line at the end of the item.\n- Only state what the source says. If only the description of a video was available,\n  say so and do not invent its content.\n- Plain text, no Markdown (Telegram will not render it here): no **, no #, no tables.\n- No introduction or sign-off. If there are several items, a short summary paragraph may close the message.`;\n\nconst blocks = items.map((it, n) => {\n  const note = it.source === 'youtube' && !it.hasTranscript\n    ? '\\n(No transcript available, only the video description.)' : '';\n  const body = (it.text || '').slice(0, cfg.maxCharsPerItem);\n  return `### [${n + 1}] ${LABEL[it.source]} — ${it.author}\\nTitle: ${it.title}\\n` +\n         `Date: ${it.published}\\nLink: ${it.url}${note}\\n\\n${body}`;\n});\n\nconst content = [{\n  type: 'text',\n  text: `${items.length} new items:\\n\\n${blocks.join('\\n\\n---\\n\\n')}`,\n}];\nlet imageCount = 0;\nitems.forEach((it, n) => {\n  for (const url of (it.images || []).slice(0, 2)) {\n    if (imageCount >= cfg.maxImages) return;\n    content.push({ type: 'text', text: `Image for item [${n + 1}]:` });\n    content.push({ type: 'image', source: { type: 'url', url } });\n    imageCount++;\n  }\n});\n\nreturn [{\n  json: {\n    itemCount: items.length,\n    body: {\n      model: cfg.model,\n      max_tokens: 4000,\n      system,\n      messages: [{ role: 'user', content }],\n    },\n  },\n}];\n"
       }
     },
     {
-      "id": "36b55bad-a082-530f-aff7-8c4e41994792",
-      "name": "Claude: összefoglaló",
+      "id": "994f5099-a5eb-5dec-986c-8510a1a1484b",
+      "name": "Claude: summarize",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -382,8 +382,8 @@
       }
     },
     {
-      "id": "3e690645-36f9-5dcd-be71-e9a79ee576c4",
-      "name": "Telegram: darabolás",
+      "id": "79131319-5641-5e54-bc46-38bb34c1dba8",
+      "name": "Telegram: split message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -391,12 +391,12 @@
         340
       ],
       "parameters": {
-        "jsCode": "// A Telegram egy üzenetben legfeljebb 4096 karaktert enged: bekezdéshatáron daraboljuk.\nconst res = $input.first().json;\nconst text = (res.content || [])\n  .filter(c => c.type === 'text')\n  .map(c => c.text)\n  .join('\\n')\n  .trim();\nif (!text) throw new Error('A Claude-válasz üres: ' + JSON.stringify(res).slice(0, 500));\n\nconst stamp = new Date().toLocaleString('hu-HU', { timeZone: 'Europe/Budapest' });\nconst LIMIT = 3900;\nconst chunks = [];\nlet current = `📰 Content Digest — ${stamp}\\n\\n`;\nfor (let para of text.split(/\\n{2,}/)) {\n  if (current.length + para.length + 2 > LIMIT && current.trim()) {\n    chunks.push(current.trim());\n    current = '';\n  }\n  while (para.length > LIMIT) {\n    chunks.push(para.slice(0, LIMIT));\n    para = para.slice(LIMIT);\n  }\n  current += para + '\\n\\n';\n}\nif (current.trim()) chunks.push(current.trim());\n\nreturn chunks.map((chunk, i) => ({\n  json: { chunk: chunks.length > 1 ? `${chunk}\\n\\n(${i + 1}/${chunks.length})` : chunk },\n}));\n"
+        "jsCode": "// Telegram allows at most 4096 characters per message, so split at paragraph boundaries.\nconst res = $input.first().json;\nconst text = (res.content || [])\n  .filter(c => c.type === 'text')\n  .map(c => c.text)\n  .join('\\n')\n  .trim();\nif (!text) throw new Error('Empty Claude response: ' + JSON.stringify(res).slice(0, 500));\n\nconst stamp = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Budapest' });\nconst LIMIT = 3900;\nconst chunks = [];\nlet current = `📰 Content Digest — ${stamp}\\n\\n`;\nfor (let para of text.split(/\\n{2,}/)) {\n  if (current.length + para.length + 2 > LIMIT && current.trim()) {\n    chunks.push(current.trim());\n    current = '';\n  }\n  while (para.length > LIMIT) {\n    chunks.push(para.slice(0, LIMIT));\n    para = para.slice(LIMIT);\n  }\n  current += para + '\\n\\n';\n}\nif (current.trim()) chunks.push(current.trim());\n\nreturn chunks.map((chunk, i) => ({\n  json: { chunk: chunks.length > 1 ? `${chunk}\\n\\n(${i + 1}/${chunks.length})` : chunk },\n}));\n"
       }
     },
     {
-      "id": "46c5e5a0-f792-5579-9422-f08d02da45ea",
-      "name": "Telegram: küldés",
+      "id": "c4eb7873-5e09-5652-b622-a0d128408561",
+      "name": "Telegram: send",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
@@ -404,7 +404,7 @@
         340
       ],
       "parameters": {
-        "chatId": "={{ $('⚙️ Beállítások').first().json.telegramChatId }}",
+        "chatId": "={{ $('⚙️ Settings').first().json.telegramChatId }}",
         "text": "={{ $json.chunk }}",
         "additionalFields": {
           "appendAttribution": false
@@ -412,8 +412,8 @@
       }
     },
     {
-      "id": "d3e64942-ba80-5a2e-b0d2-9db503e1fa8d",
-      "name": "Jegyzet: beállítások",
+      "id": "b565294a-9cae-56ce-ba0b-940fb7f8c88c",
+      "name": "Note: settings",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -421,15 +421,15 @@
         100
       ],
       "parameters": {
-        "content": "## ⚙️ Itt kezdd\nA **Beállítások** node-ban adod meg a figyelt YouTube-csatornákat, X-fiókokat, hírlevél-feladókat, a Telegram-chatet és a modellt.",
+        "content": "## ⚙️ Start here\nAll configuration lives in the **Settings** node: the YouTube channels, X accounts and newsletter senders to follow, the Telegram chat and the model.",
         "width": 460,
         "height": 460,
         "color": 1
       }
     },
     {
-      "id": "49f3714b-b999-5f97-acc0-9ef25dbb5680",
-      "name": "Jegyzet: YouTube",
+      "id": "0c6f8bd0-10bf-5408-8840-b86f4e84c81e",
+      "name": "Note: YouTube",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -437,15 +437,15 @@
         -140
       ],
       "parameters": {
-        "content": "## ▶️ YouTube\nCsatorna → feltöltési lista → legújabb videók → csak az eddig nem látottak → felirat (Supadata, opcionális)",
+        "content": "## ▶️ YouTube\nChannel → uploads playlist → latest videos → only the ones not seen before → transcript (Supadata, optional)",
         "width": 1540,
         "height": 300,
         "color": 3
       }
     },
     {
-      "id": "06a41112-ee5b-5037-afe3-e7d8fe41ae02",
-      "name": "Jegyzet: X",
+      "id": "e54e5415-384b-5734-be73-a58fd5204436",
+      "name": "Note: X",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -453,15 +453,15 @@
         200
       ],
       "parameters": {
-        "content": "## 𝕏 X-posztok\ntwitterapi.io: fiókonként a legutóbbi posztok, a képekkel együtt",
+        "content": "## 𝕏 X posts\ntwitterapi.io: latest posts per account, including images",
         "width": 940,
         "height": 300,
         "color": 7
       }
     },
     {
-      "id": "4bccfd74-0c6a-568c-af28-47db95860ea7",
-      "name": "Jegyzet: e-mail",
+      "id": "d45c6ef1-0050-5620-ac09-97fd6ff4fee9",
+      "name": "Note: email",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -469,15 +469,15 @@
         540
       ],
       "parameters": {
-        "content": "## ✉️ Hírlevelek\nGmail-keresés a megadott feladókra",
+        "content": "## ✉️ Newsletters\nGmail search for the configured senders",
         "width": 940,
         "height": 300,
         "color": 4
       }
     },
     {
-      "id": "24bd5d45-4922-5b6d-aeca-f6d14f4a68df",
-      "name": "Jegyzet: összefoglaló",
+      "id": "3384fdb6-55bf-53b6-980b-c40d2aaecf81",
+      "name": "Note: summary",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -485,7 +485,7 @@
         200
       ],
       "parameters": {
-        "content": "## 🤖 Összefoglaló\nEgy Claude-kérés az összes új elemből (szöveg + X-képek), a válasz 4096 karakteres darabokban megy Telegramra",
+        "content": "## 🤖 Summary\nOne Claude request for all new items (text + X images); the reply goes to Telegram in chunks of up to 4096 characters",
         "width": 1060,
         "height": 300,
         "color": 5
@@ -493,252 +493,252 @@
     }
   ],
   "connections": {
-    "Ütemezés (6 óránként)": {
+    "Schedule (every 6 hours)": {
       "main": [
         [
           {
-            "node": "⚙️ Beállítások",
+            "node": "⚙️ Settings",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Kézi indítás": {
+    "Manual trigger": {
       "main": [
         [
           {
-            "node": "⚙️ Beállítások",
+            "node": "⚙️ Settings",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "⚙️ Beállítások": {
+    "⚙️ Settings": {
       "main": [
         [
           {
-            "node": "YouTube: csatornák",
+            "node": "YouTube: channels",
             "type": "main",
             "index": 0
           },
           {
-            "node": "X: fiókok",
+            "node": "X: accounts",
             "type": "main",
             "index": 0
           },
           {
-            "node": "E-mail: keresés",
+            "node": "Email: build search",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: csatornák": {
+    "YouTube: channels": {
       "main": [
         [
           {
-            "node": "YouTube: feltöltési lista",
+            "node": "YouTube: uploads playlist",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: feltöltési lista": {
+    "YouTube: uploads playlist": {
       "main": [
         [
           {
-            "node": "YouTube: legújabb videók",
+            "node": "YouTube: latest videos",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: legújabb videók": {
+    "YouTube: latest videos": {
       "main": [
         [
           {
-            "node": "YouTube: normalizálás",
+            "node": "YouTube: normalize",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: normalizálás": {
+    "YouTube: normalize": {
       "main": [
         [
           {
-            "node": "YouTube: csak az új videók",
+            "node": "YouTube: new videos only",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: csak az új videók": {
+    "YouTube: new videos only": {
       "main": [
         [
           {
-            "node": "YouTube: felirat (Supadata)",
+            "node": "YouTube: transcript (Supadata)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: felirat (Supadata)": {
+    "YouTube: transcript (Supadata)": {
       "main": [
         [
           {
-            "node": "YouTube: felirat hozzáfűzése",
+            "node": "YouTube: attach transcript",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "X: fiókok": {
+    "X: accounts": {
       "main": [
         [
           {
-            "node": "X: legutóbbi posztok",
+            "node": "X: latest posts",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "X: legutóbbi posztok": {
+    "X: latest posts": {
       "main": [
         [
           {
-            "node": "X: normalizálás",
+            "node": "X: normalize",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "X: normalizálás": {
+    "X: normalize": {
       "main": [
         [
           {
-            "node": "X: csak az új posztok",
+            "node": "X: new posts only",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "E-mail: keresés": {
+    "Email: build search": {
       "main": [
         [
           {
-            "node": "Gmail: hírlevelek",
+            "node": "Gmail: newsletters",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Gmail: hírlevelek": {
+    "Gmail: newsletters": {
       "main": [
         [
           {
-            "node": "E-mail: normalizálás",
+            "node": "Email: normalize",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "E-mail: normalizálás": {
+    "Email: normalize": {
       "main": [
         [
           {
-            "node": "E-mail: csak az új levelek",
+            "node": "Email: new emails only",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "YouTube: felirat hozzáfűzése": {
+    "YouTube: attach transcript": {
       "main": [
         [
           {
-            "node": "Összes új tartalom",
+            "node": "All new content",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "X: csak az új posztok": {
+    "X: new posts only": {
       "main": [
         [
           {
-            "node": "Összes új tartalom",
+            "node": "All new content",
             "type": "main",
             "index": 1
           }
         ]
       ]
     },
-    "E-mail: csak az új levelek": {
+    "Email: new emails only": {
       "main": [
         [
           {
-            "node": "Összes új tartalom",
+            "node": "All new content",
             "type": "main",
             "index": 2
           }
         ]
       ]
     },
-    "Összes új tartalom": {
+    "All new content": {
       "main": [
         [
           {
-            "node": "Prompt összeállítása",
+            "node": "Build prompt",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prompt összeállítása": {
+    "Build prompt": {
       "main": [
         [
           {
-            "node": "Claude: összefoglaló",
+            "node": "Claude: summarize",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Claude: összefoglaló": {
+    "Claude: summarize": {
       "main": [
         [
           {
-            "node": "Telegram: darabolás",
+            "node": "Telegram: split message",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Telegram: darabolás": {
+    "Telegram: split message": {
       "main": [
         [
           {
-            "node": "Telegram: küldés",
+            "node": "Telegram: send",
             "type": "main",
             "index": 0
           }

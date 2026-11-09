@@ -2,8 +2,8 @@
   "name": "Content Digest – error alert",
   "nodes": [
     {
-      "id": "c1709f77-30e2-5bda-9d6b-11817a58584b",
-      "name": "Hiba esetén",
+      "id": "503b519f-9ec6-59f7-93ea-df53fca6ab08",
+      "name": "On error",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
       "position": [
@@ -13,8 +13,8 @@
       "parameters": {}
     },
     {
-      "id": "98f7e6a0-bd9c-5b93-bce4-9b49949477cb",
-      "name": "Telegram: hibajelzés",
+      "id": "e02f0266-eb1a-52e4-ad1e-fa39624b4830",
+      "name": "Telegram: error alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
@@ -23,7 +23,7 @@
       ],
       "parameters": {
         "chatId": "-100XXXXXXXXXX",
-        "text": "=⚠️ Hibára futott: {{ $json.workflow.name }}\nNode: {{ $json.execution.lastNodeExecuted }}\nHiba: {{ $json.execution.error.message }}\n{{ $json.execution.url }}",
+        "text": "=⚠️ Workflow failed: {{ $json.workflow.name }}\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}\n{{ $json.execution.url }}",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -31,11 +31,11 @@
     }
   ],
   "connections": {
-    "Hiba esetén": {
+    "On error": {
       "main": [
         [
           {
-            "node": "Telegram: hibajelzés",
+            "node": "Telegram: error alert",
             "type": "main",
             "index": 0
           }

@@ -10,7 +10,8 @@ Windows Task Scheduler, transcribes audio locally with Whisper and writes its
 reports with Claude Code. Here the same pipeline is built from n8n nodes, so
 you can follow it step by step in the editor and run it on any n8n instance.
 
-The node names and the generated summaries are in Hungarian.
+The summaries are written in Hungarian by default. The language is one setting
+(`reportLanguage`).
 
 ![The workflow in the n8n editor](docs/workflow.png)
 
@@ -31,7 +32,7 @@ flowchart LR
     MG --> P[Prompt<br/>text + images] --> AI[Claude API] --> TG[Telegram<br/>4096-character chunks]
 ```
 
-You list the sources to follow in the `⚙️ Beállítások` (Settings) node. Adding
+You list the sources to follow in the `⚙️ Settings` node. Adding
 a channel or an account is one new line in a list; no other node needs to
 change.
 
@@ -70,16 +71,15 @@ then `workflows/content-digest.json`.
 
 You need six credentials, each attached to the matching nodes.
 
-The two YouTube HTTP nodes (feltöltési lista, legújabb videók: upload playlist
-and latest videos) use a Query Auth credential named `key`, with your YouTube
-Data API v3 key as the value. The transcript node (felirat, Supadata) uses
+The two YouTube HTTP nodes (uploads playlist, latest videos) use a Query Auth credential named `key`, with your YouTube
+Data API v3 key as the value. The transcript node (Supadata) uses
 Header Auth named `x-api-key`. It's optional: without it, summaries are based
 on the video descriptions. The X node also uses Header Auth, named `X-API-Key`
 with your twitterapi.io key, and the Claude node uses `x-api-key` with your
 Anthropic API key.
 
 The Gmail node connects to your mailbox with Gmail OAuth2. The two Telegram
-nodes (küldés and hibajelzés: send and error alert) need your bot token from
+nodes (send, error alert) need your bot token from
 @BotFather.
 
 n8n stores the keys encrypted. The workflow files in this repository contain no
@@ -90,7 +90,7 @@ empty in the Settings node and that branch won't run at all.
 
 ### 4. Settings
 
-The main fields of the `⚙️ Beállítások` node:
+The main fields of the `⚙️ Settings` node:
 
 ```js
 youtubeChannels: ['@tizeslista_hu', 'UCjFCzjkgSShdRZIVJx3SSlQ'],
@@ -99,6 +99,7 @@ emailSenders:    ['newsletter@example.com'],
 lookbackHours:   24,
 telegramChatId:  '-100XXXXXXXXXX',
 model:           'claude-sonnet-5-5',
+reportLanguage:  'Hungarian',
 ```
 
 A YouTube channel can be given either as an `@handle` or as a channel ID
@@ -106,7 +107,7 @@ starting with `UC`.
 
 ### 5. Test run and activation
 
-1. Run the workflow from the Kézi indítás (manual trigger) node. Each node
+1. Run the workflow from the Manual trigger node. Each node
    shows how many items passed through it.
 2. In the main workflow's Settings → Error workflow field, select
    "Content Digest – error alert".
@@ -125,7 +126,7 @@ daily quota of 10,000.
 ### Deduplication
 
 Every item gets an ID (`youtube:<id>`, `x:<id>`, `email:<id>`), and the three
-"csak az új" (new only) nodes filter on it. To see everything again, run the
+"new ... only" nodes filter on it. To see everything again, run the
 Clear Deduplication History operation on those nodes.
 
 ### Empty branches

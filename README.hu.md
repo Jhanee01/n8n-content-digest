@@ -2,7 +2,7 @@
 
 Néhány YouTube-csatornát, X-fiókot és hírlevelet követek, és nem akarom
 mindet végignézni. Ez a workflow hat óránként összeszedi az új tartalmat,
-Claude-dal magyar összefoglalót írat belőle, és elküldi egy Telegram-csatornára.
+Claude-dal összefoglalót írat belőle (alapból magyarul), és elküldi egy Telegram-csatornára.
 Ugyanarról a videóról vagy posztról nem küld kétszer.
 
 A projekt egy Pythonban írt, Windows-ütemezővel futó rendszerem n8n-es
@@ -29,7 +29,7 @@ flowchart LR
     MG --> P[Prompt<br/>szöveg + képek] --> AI[Claude API] --> TG[Telegram<br/>4096 karakteres darabok]
 ```
 
-A figyelt forrásokat a `⚙️ Beállítások` node-ban kell megadni. Egy új csatorna
+A figyelt forrásokat a `⚙️ Settings` node-ban kell megadni. Egy új csatorna
 vagy fiók egy új sor a listában, a többi node-hoz nem kell nyúlni.
 
 A három forrás külön ágon fut. Mindegyik ág végén egy Remove Duplicates node
@@ -70,7 +70,7 @@ Workflows → Import from File. Előbb a `workflows/error-alert.json`, utána a
 Hat hitelesítő adatot kell létrehozni, és hozzárendelni a megfelelő
 node-okhoz.
 
-A két YouTube-os HTTP node (feltöltési lista, legújabb videók) Query Auth
+A két YouTube-os HTTP node (uploads playlist, latest videos) Query Auth
 típusú hitelesítést kap `key` névvel, az értéke a YouTube Data API v3 kulcs. A
 felirat-node (Supadata) Header Auth-ot használ `x-api-key` névvel. Ez nem
 kötelező: kulcs nélkül a videók leírásából készül az összefoglaló. Az X-es node
@@ -78,18 +78,18 @@ szintén Header Auth-ot kap, `X-API-Key` névvel és a twitterapi.io kulccsal, a
 Claude-node pedig `x-api-key` névvel és az Anthropic API-kulccsal.
 
 A Gmail-node OAuth2-vel kapcsolódik a saját postafiókodhoz. A két Telegram node
-(küldés, hibajelzés) a bot tokenjét kéri, amit a @BotFathertől kapsz.
+(send, error alert) a bot tokenjét kéri, amit a @BotFathertől kapsz.
 
 A kulcsokat az n8n titkosítva tárolja. A repóban lévő workflow-fájlokban nincs
 kulcs.
 
 Ha valamelyik forrást nem használod (például nincs twitterapi.io-kulcsod),
-hagyd üresen a hozzá tartozó listát a Beállításokban. Akkor az az ág el sem
+hagyd üresen a hozzá tartozó listát a Settings node-ban. Akkor az az ág el sem
 indul.
 
 ### 4. Beállítások
 
-A `⚙️ Beállítások` node legfontosabb mezői:
+A `⚙️ Settings` node legfontosabb mezői:
 
 ```js
 youtubeChannels: ['@tizeslista_hu', 'UCjFCzjkgSShdRZIVJx3SSlQ'],
@@ -98,6 +98,7 @@ emailSenders:    ['newsletter@example.com'],
 lookbackHours:   24,
 telegramChatId:  '-100XXXXXXXXXX',
 model:           'claude-sonnet-5-5',
+reportLanguage:  'Hungarian',
 ```
 
 A YouTube-csatornát `@handle` alakban és `UC...` kezdetű azonosítóval is meg
@@ -105,7 +106,7 @@ lehet adni.
 
 ### 5. Próba és élesítés
 
-1. Futtasd a workflow-t a Kézi indítás triggerről. Minden node-on látszik,
+1. Futtasd a workflow-t a Manual trigger node-ról. Minden node-on látszik,
    hány elem ment át rajta.
 2. A fő workflow Settings → Error workflow mezőjében válaszd ki a
    „Content Digest – error alert” workflow-t.
@@ -124,7 +125,7 @@ kvótaegység, a napi ingyenes keret 10 000.
 ### Deduplikáció
 
 Minden elem kap egy azonosítót (`youtube:<id>`, `x:<id>`,
-`email:<id>`), a három „csak az új …” node ez alapján szűr. Ha mindent újra
+`email:<id>`), a három „new … only” node ez alapján szűr. Ha mindent újra
 látni szeretnél, futtasd a node-on a Clear Deduplication History műveletet.
 
 ### Üres ágak
