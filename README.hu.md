@@ -2,13 +2,21 @@
 
 Néhány YouTube-csatornát, X-fiókot és hírlevelet követek, és nem akarom
 mindet végignézni. Ez a workflow hat óránként összeszedi az új tartalmat,
-Claude-dal összefoglalót írat belőle (alapból magyarul), és elküldi egy Telegram-csatornára.
+Claude-dal magyar nyelvű jelentést írat belőle, és elküldi egy Telegram-csatornára.
 Ugyanarról a videóról vagy posztról nem küld kétszer.
 
+**A promptok befektetési információkra fókuszálnak.** A modell nem általános
+összefoglalót ír, hanem kigyűjti, mit állít a figyelt befektető: melyik
+eszközre milyen irányt, milyen árszinteket, milyen időtávra és mekkora
+meggyőződéssel, és hogy van-e benne pénze. Az X-posztokhoz csatolt
+grafikonokról leolvassa a szinteket. Saját befektetési tanácsot nem ad.
+
 A projekt egy Pythonban írt, Windows-ütemezővel futó rendszerem n8n-es
-változata. Az eredeti helyi Whisperrel ír át hangot és Claude Code-dal írja a
-jelentést. Itt ugyanez a folyamat node-okból áll össze, a szerkesztőben
-követhető, és bármilyen n8n-példányon elindul.
+változata, és ugyanazokat a jelentésszabályokat használja. Az eredeti
+Claude Code-dal írja a jelentést. Itt ugyanez a folyamat node-okból áll össze,
+a szerkesztőben követhető, és bármilyen n8n-példányon elindul. A felirat
+nélküli videókat egy saját gépen futó Whisper-szolgáltatás írja át, ugyanúgy,
+mint az eredetiben.
 
 ![A workflow az n8n szerkesztőben](docs/workflow.png)
 
@@ -21,12 +29,14 @@ flowchart LR
     C --> X[twitterapi.io<br/>legutóbbi posztok]
     C --> M[Gmail<br/>hírlevelek a feladóktól]
     YT --> D1[csak az új] --> S[felirat<br/>Supadata]
+    S -->|nincs felirat| W[Whisper<br/>saját gépen]
     X --> D2[csak az új]
     M --> D3[csak az új]
     S --> MG[Összes új tartalom]
+    W --> MG
     D2 --> MG
     D3 --> MG
-    MG --> P[Prompt<br/>szöveg + képek] --> AI[Claude API] --> TG[Telegram<br/>4096 karakteres darabok]
+    MG --> P[Prompt<br/>jelentéstípusonként] --> AI[Claude API] --> TG[Telegram<br/>4096 karakteres darabok]
 ```
 
 A figyelt forrásokat a `⚙️ Settings` node-ban kell megadni. Egy új csatorna
@@ -39,15 +49,43 @@ az ennél régebbi tartalom akkor sem kerül be, ha még sosem látta.
 
 A külső API-hívások hiba esetén is továbbengedik a folyamatot (`On Error:
 Continue`). Ha egy csatorna nem létezik, vagy az egyik API épp nem válaszol,
-a többi forrásról ugyanúgy megjön az összefoglaló.
-
-A YouTube-videóknál a felirat a nyersanyag. Ha nincs felirat, a modell a videó
-leírását kapja meg, és a promptban szerepel, hogy csak az volt elérhető. Az
-X-posztok képei URL-ként mennek a Claude-nak, így a grafikonokon lévő
-árszinteket is ki tudja olvasni.
+a többi forrásról ugyanúgy megjön a jelentés.
 
 Ha a fő workflow hibára fut, a külön `error-alert.json` workflow szól
 Telegramon.
+
+### A jelentések típusai
+
+Minden forráslista egy jelentéstípushoz tartozik, és mindegyik típusnak saját
+promptja van. Típusonként egy Claude-hívás és egy külön Telegram-üzenet készül.
+
+| Típus | Settings-lista | Mire való |
+|---|---|---|
+| `investor` | `youtubeChannels`, `xAccounts`, `emailSenders` | Befektetési elemzés személyenként: állítások, árszintek, időtáv, meggyőződés, a grafikonok kiolvasásával |
+| `newsfeed` | `xNewsAccounts` | Naponta több tucat rövid posztot író hírfigyelő fiókok (pl. @aixbt_agent): projektenként csoportosítva, rangsorolva, a zaj nélkül |
+| `explainer` | `explainerChannels` | Nem befektetési, ismeretterjesztő vagy önfejlesztési videók: részletes összefoglaló a gondolatmenettel, fogalmakkal, gyakorlati lépésekkel |
+
+A promptok a `Build prompt` node elején vannak, magyarul. Az eredeti projekt
+skilljeiből készültek, egyetlen API-híváshoz igazítva: a modell nem olvas
+fájlt és nem használ eszközt, a kimenet pedig sima szöveg. A Telegram node itt
+nem alakítja át a Markdownt, ezért a szerkezetet emojival kezdődő sorok és
+üres sorok adják.
+
+Két dolog maradt ki az eredetiből. A videók képkockáit itt nem kapja meg a
+modell, csak az X-posztok képeit. És mivel nincs előző jelentése, nem tudja
+megmondani, mi változott a korábbiakhoz képest, csak ha maga a szerző mondja.
+
+### Felirat nélküli videók
+
+A YouTube-videóknál a felirat a nyersanyag. Először a Supadata adja a videó
+saját feliratát. Ha nincs felirat (vagy nincs Supadata-kulcs), a videó a
+Whisper-szolgáltatáshoz megy: ez a saját gépeden letölti a hangsávot, és
+leiratja (`whisper-service/`). A jelentésben ott a jelölés, hogy gépi
+átiratból készült, mert a nevek és a számok pontatlanok lehetnek.
+
+Ha a szolgáltatás nem fut, vagy a videó hosszabb a korlátnál, a modell a videó
+leírását kapja, és a jelentésben szerepel, hogy csak az volt elérhető. Ha
+üresen hagyod a `whisperUrl` beállítást, ez a lépés kimarad.
 
 ## Telepítés
 
@@ -58,24 +96,54 @@ docker compose up -d
 ```
 
 Utána nyisd meg a `http://localhost:5678` címet. n8n Cloudon vagy saját VPS-en
-ugyanígy használható.
+ugyanígy használható, de a Whisper-szolgáltatásnak akkor egy olyan gépen kell
+futnia, amit az n8n elér.
 
-### 2. Import
+### 2. A Whisper-szolgáltatás
+
+Python 3.10+, ffmpeg és lehetőleg egy NVIDIA GPU kell hozzá. GPU nélkül is
+fut, csak lassabban.
+
+```bash
+cd whisper-service
+pip install -r requirements.txt
+```
+
+Indítás előtt adj meg egy legalább 16 karakteres véletlen tokent. Ugyanezt
+kapja majd az n8n is:
+
+```powershell
+$env:WHISPER_TOKEN = "<véletlen érték>"
+python server.py
+```
+
+A szolgáltatás a 8790-es porton figyel. Az n8n a Docker-konténerből a
+`http://host.docker.internal:8790` címen éri el. Ha az n8n nem Dockerben fut,
+hanem ugyanazon a gépen, a cím `http://localhost:8790`. Működik-e:
+`http://localhost:8790/health`.
+
+A többi beállítás környezeti változó: `WHISPER_PORT`, `WHISPER_MODEL` (alapból
+`small`, 4 GB VRAM-on a `medium` már nem fér el), `WHISPER_MAX_MINUTES`
+(alapból 180), `WHISPER_HOST` (alapból `0.0.0.0`, hogy a konténer elérje).
+Egyszerre egy videót ír át, a többi kérés sorban vár.
+
+### 3. Import
 
 Workflows → Import from File. Előbb a `workflows/error-alert.json`, utána a
 `workflows/content-digest.json`.
 
-### 3. Hitelesítő adatok (Credentials)
+### 4. Hitelesítő adatok (Credentials)
 
-Hat hitelesítő adatot kell létrehozni, és hozzárendelni a megfelelő
+Hét hitelesítő adatot kell létrehozni, és hozzárendelni a megfelelő
 node-okhoz.
 
 A két YouTube-os HTTP node (uploads playlist, latest videos) Query Auth
 típusú hitelesítést kap `key` névvel, az értéke a YouTube Data API v3 kulcs. A
 felirat-node (Supadata) Header Auth-ot használ `x-api-key` névvel. Ez nem
-kötelező: kulcs nélkül a videók leírásából készül az összefoglaló. Az X-es node
-szintén Header Auth-ot kap, `X-API-Key` névvel és a twitterapi.io kulccsal, a
-Claude-node pedig `x-api-key` névvel és az Anthropic API-kulccsal.
+kötelező: kulcs nélkül minden videó a Whisperhez megy. A Whisper-node szintén
+Header Auth-ot kap, `X-Whisper-Token` névvel és a szolgáltatás tokenjével. Az
+X-es node `X-API-Key` névvel a twitterapi.io kulcsát kapja, a Claude-node pedig
+`x-api-key` névvel az Anthropic API-kulcsot.
 
 A Gmail-node OAuth2-vel kapcsolódik a saját postafiókodhoz. A két Telegram node
 (send, error alert) a bot tokenjét kéri, amit a @BotFathertől kapsz.
@@ -87,24 +155,32 @@ Ha valamelyik forrást nem használod (például nincs twitterapi.io-kulcsod),
 hagyd üresen a hozzá tartozó listát a Settings node-ban. Akkor az az ág el sem
 indul.
 
-### 4. Beállítások
+### 5. Beállítások
 
 A `⚙️ Settings` node legfontosabb mezői:
 
 ```js
-youtubeChannels: ['@tizeslista_hu', 'UCjFCzjkgSShdRZIVJx3SSlQ'],
-xAccounts:       ['ChifoiCristian'],
-emailSenders:    ['newsletter@example.com'],
-lookbackHours:   24,
-telegramChatId:  '-100XXXXXXXXXX',
-model:           'claude-sonnet-5-5',
-reportLanguage:  'Hungarian',
+youtubeChannels:   ['UCjFCzjkgSShdRZIVJx3SSlQ'],   // investor
+xAccounts:         ['ChifoiCristian'],             // investor
+emailSenders:      ['newsletter@example.com'],     // investor
+xNewsAccounts:     ['aixbt_agent'],                // newsfeed
+explainerChannels: ['@tizeslista_hu'],             // explainer
+whisperUrl:        'http://host.docker.internal:8790',
+whisperLanguages:  ['hu', 'en', 'ro'],
+lookbackHours:     24,
+telegramChatId:    '-100XXXXXXXXXX',
+telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },
+model:             'claude-sonnet-5-5',
 ```
 
 A YouTube-csatornát `@handle` alakban és `UC...` kezdetű azonosítóval is meg
-lehet adni.
+lehet adni. A `telegramChatIds` mezőben egy jelentéstípus saját csatornát
+kaphat; üresen a `telegramChatId`-ra megy. A `whisperLanguages` azt adja meg,
+milyen nyelvű hangsávot keressen a szolgáltatás. Sok videóhoz a YouTube
+automatikus szinkronsávokat is tesz, és nélküle egy angol videó arab
+szinkronnal is lejöhet.
 
-### 5. Próba és élesítés
+### 6. Próba és élesítés
 
 1. Futtasd a workflow-t a Manual trigger node-ról. Minden node-on látszik,
    hány elem ment át rajta.
@@ -136,14 +212,16 @@ sincs, a futás a Merge előtt véget ér, és nem megy ki üres üzenet.
 
 ### Költség
 
-Futásonként egy Claude-hívás van. A felső határát a
-`maxCharsPerItem` (alapból elemenként 12 000 karakter) és a `maxImages` adja
-meg.
+Futásonként jelentéstípusonként egy Claude-hívás van, tehát legfeljebb három.
+A felső határt a `maxCharsPerItem` (alapból elemenként 40 000 karakter, ez
+nagyjából egy 45 perces videó felirata) és a `maxImages` adja meg. A
+rendszerpromptok típusonként 5-6 ezer karakteresek. A Whisper a saját gépeden
+fut, annak nincs API-költsége.
 
 ## Tesztelés
 
-n8n 2.8.4-en teszteltem, egy helyi mock szerverrel a YouTube, a Supadata, a
-twitterapi.io, az Anthropic és a Telegram API helyett.
+Az eredeti változatot n8n 2.8.4-en teszteltem, egy helyi mock szerverrel a
+YouTube, a Supadata, a twitterapi.io, az Anthropic és a Telegram API helyett.
 
 A mock csatornánként egy friss és egy régi videót adott vissza, a régi a
 `lookbackHours` miatt kimaradt. A felirat nélküli videónál a workflow a
@@ -155,13 +233,31 @@ Az X-poszt grafikonja `image` blokkként jutott el a Claude-hoz. A hosszú
 válaszból három Telegram-üzenet lett, mindegyik 4096 karakter alatt. A második
 futás ugyanazzal az adattal már nem hívta a Claude-ot, és üzenetet sem küldött.
 
+A Whisper-ággal és a jelentéstípusokkal bővített változatot ugyanígy, n8n
+2.8.4-en, mock API-kkal teszteltem, de a Whisper-szolgáltatás valódi volt. A
+mock egy valódi, felirat nélküli rövid videót adott vissza. A Supadata nem
+talált hozzá feliratot, a videó a Whisperhez ment, és a Claude a gépi átiratot
+kapta, `felirat: whisper (en)` jelöléssel. A három jelentéstípus három külön
+Claude-hívás lett, a saját promptjával. A `newsfeed` típus a beállított külön
+Telegram-csatornára ment, és a fiók mind a 12 posztja bekerült, nem csak az
+első 5. A második futás ugyanazzal az adattal nem hívta a Claude-ot. Leállított
+Whisper-szolgáltatás mellett egy új, felirat nélküli videó a leírásával ment
+tovább, `felirat: NINCS` jelöléssel, és a futás sikeres maradt.
+
+A szolgáltatás GPU-n egy rövid nyilvános videót 3-4 másodperc alatt írt át, a
+hibás tokent és a hibás videóazonosítót visszautasította. A promptokat egy
+nap valódi anyagán (30 befektetési elem és 9 hírfigyelő poszt) Claude-dal is
+lefuttattam: a kimenet sima szöveg lett, Markdown-jelölés nélkül.
+
 ![Egy sikeres próbafutás, a node-okon az átment elemek számával](docs/test-run.png)
 
 ## Fájlok
 
 ```
-workflows/content-digest.json    a fő workflow
+workflows/content-digest.json    a fő workflow, benne a promptokkal
 workflows/error-alert.json       hibajelző workflow (Error Trigger → Telegram)
+whisper-service/server.py        helyi Whisper-szolgáltatás a felirat nélküli videókhoz
+whisper-service/requirements.txt a szolgáltatás Python-függőségei
 docker-compose.yml               helyi n8n egy paranccsal
 docs/                            képernyőképek
 README.md                        angol nyelvű README

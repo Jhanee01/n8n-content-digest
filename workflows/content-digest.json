@@ -42,7 +42,7 @@
         340
       ],
       "parameters": {
-        "jsCode": "// ⚙️ SETTINGS — this is the only node you need to edit.\n// To add a source, add an item to the matching list. An empty list skips that source.\nreturn [{\n  json: {\n    // YouTube channels: @handle or a channel ID starting with UC\n    youtubeChannels: [\n      '@tizeslista_hu',\n      'UCjFCzjkgSShdRZIVJx3SSlQ',\n    ],\n\n    // X usernames (without the @)\n    xAccounts: [\n      'ChifoiCristian',\n    ],\n\n    // Newsletters: the sender's email address (read from your Gmail account)\n    emailSenders: [\n      'newsletter@example.com',\n    ],\n\n    lookbackHours: 24,       // older content is skipped, even on the first run\n    maxItemsPerSource: 5,    // max new items per source per run\n    maxCharsPerItem: 12000,  // max characters per item sent to the LLM\n    maxImages: 8,            // max X images (charts) sent to the model\n\n    model: 'claude-sonnet-5-5',\n    reportLanguage: 'Hungarian',  // language of the summary\n    telegramChatId: '-100XXXXXXXXXX',  // channel or chat ID\n  },\n}];\n"
+        "jsCode": "// ⚙️ SETTINGS — this is the only node you need to edit.\n// To add a source, add an item to the matching list. An empty list skips that source.\n// Every list belongs to one report type (profile), and each profile has its own prompt:\n//   investor  — investment analysis: claims, price levels, time frames, charts\n//   newsfeed  — high-volume X news accounts, summarised per project (e.g. @aixbt_agent)\n//   explainer — non-investment videos, detailed walkthrough of the argument\nreturn [{\n  json: {\n    // investor: YouTube channels (@handle or a channel ID starting with UC)\n    youtubeChannels: [\n      'UCjFCzjkgSShdRZIVJx3SSlQ',\n    ],\n    // investor: X usernames (without the @)\n    xAccounts: [\n      'ChifoiCristian',\n    ],\n    // investor: newsletters, by the sender's email address (read from your Gmail account)\n    emailSenders: [\n      'newsletter@example.com',\n    ],\n    // newsfeed: X accounts that post dozens of short news items a day\n    xNewsAccounts: [\n      'aixbt_agent',\n    ],\n    // explainer: educational / self-development YouTube channels\n    explainerChannels: [\n      '@tizeslista_hu',\n    ],\n\n    // Local Whisper service (whisper-service/ in this repo) for videos without captions.\n    // Leave empty to fall back to the video description instead.\n    whisperUrl: 'http://host.docker.internal:8790',\n    whisperLanguages: ['hu', 'en', 'ro'],  // preferred audio track languages\n\n    lookbackHours: 24,       // older content is skipped, even on the first run\n    maxItemsPerSource: 5,    // max new items per source per run\n    maxCharsPerItem: 40000,  // max characters per item sent to the LLM (≈ a 45-minute video)\n    maxImages: 8,            // max X images (charts) sent to the model per report\n\n    model: 'claude-sonnet-5-5',\n    telegramChatId: '-100XXXXXXXXXX',  // default channel or chat ID\n    // Optional: send a profile to its own chat. Empty means telegramChatId.\n    telegramChatIds: {\n      investor: '',\n      newsfeed: '',\n      explainer: '',\n    },\n  },\n}];\n"
       }
     },
     {
@@ -55,7 +55,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "// One output item per channel. Accepts both @handles and UC... channel IDs.\nconst cfg = $('⚙️ Settings').first().json;\nreturn (cfg.youtubeChannels || [])\n  .map(c => String(c).trim())\n  .filter(Boolean)\n  .map(c => ({\n    json: {\n      channel: c,\n      lookup: c.startsWith('UC')\n        ? `id=${c}`\n        : `forHandle=${encodeURIComponent(c.startsWith('@') ? c : '@' + c)}`,\n    },\n  }));\n"
+        "jsCode": "// One output item per channel. Accepts both @handles and UC... channel IDs.\nconst cfg = $('⚙️ Settings').first().json;\nconst lists = [\n  ['investor', cfg.youtubeChannels],\n  ['explainer', cfg.explainerChannels],\n];\nconst out = [];\nfor (const [profile, channels] of lists) {\n  for (const raw of channels || []) {\n    const c = String(raw).trim();\n    if (!c) continue;\n    out.push({\n      json: {\n        channel: c,\n        profile,\n        lookup: c.startsWith('UC')\n          ? `id=${c}`\n          : `forHandle=${encodeURIComponent(c.startsWith('@') ? c : '@' + c)}`,\n      },\n    });\n  }\n}\nreturn out;\n"
       }
     },
     {
@@ -123,7 +123,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Turn playlistItems responses into uniform content items within the lookback window.\nconst cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst out = [];\nfor (const res of $input.all()) {\n  for (const it of res.json.items || []) {\n    const s = it.snippet || {};\n    const videoId = s.resourceId?.videoId;\n    if (!videoId || Date.parse(s.publishedAt) < since) continue;\n    out.push({\n      json: {\n        uid: `youtube:${videoId}`,\n        source: 'youtube',\n        author: s.channelTitle || '',\n        title: s.title || '',\n        url: `https://www.youtube.com/watch?v=${videoId}`,\n        published: new Date(s.publishedAt).toISOString(),\n        text: s.description || '',\n        videoId,\n      },\n    });\n  }\n}\nreturn out;\n"
+        "jsCode": "// Turn playlistItems responses into uniform content items within the lookback window.\nconst cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst out = [];\n$input.all().forEach((res, i) => {\n  const profile = $('YouTube: channels').itemMatching(i)?.json.profile || 'investor';\n  for (const it of res.json.items || []) {\n    const s = it.snippet || {};\n    const videoId = s.resourceId?.videoId;\n    if (!videoId || Date.parse(s.publishedAt) < since) continue;\n    out.push({\n      json: {\n        uid: `youtube:${videoId}`,\n        source: 'youtube',\n        profile,\n        author: s.channelTitle || '',\n        title: s.title || '',\n        url: `https://www.youtube.com/watch?v=${videoId}`,\n        published: new Date(s.publishedAt).toISOString(),\n        text: s.description || '',\n        videoId,\n      },\n    });\n  }\n});\nreturn out;\n"
       }
     },
     {
@@ -184,7 +184,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "// The transcript responses come back in the same order as the input videos.\n// Without a transcript (or without a Supadata key) the video description is used.\nconst videos = $('YouTube: new videos only').all();\nreturn $input.all().map((res, i) => {\n  const video = videos[i].json;\n  const transcript = typeof res.json.content === 'string' ? res.json.content.trim() : '';\n  return {\n    json: {\n      ...video,\n      text: transcript || video.text,\n      hasTranscript: Boolean(transcript),\n    },\n  };\n});\n"
+        "jsCode": "// The transcript responses come back in the same order as the input videos.\n// Videos without captions (or without a Supadata key) go on to the Whisper check.\nconst videos = $('YouTube: new videos only').all();\nreturn $input.all().map((res, i) => {\n  const video = videos[i].json;\n  const transcript = typeof res.json.content === 'string' ? res.json.content.trim() : '';\n  return {\n    json: {\n      ...video,\n      text: transcript || video.text,\n      hasTranscript: Boolean(transcript),\n      transcriptSource: transcript ? 'youtube' : 'none',\n      transcriptLanguage: transcript ? (res.json.lang || '') : '',\n    },\n  };\n});\n"
       }
     },
     {
@@ -197,7 +197,7 @@
         340
       ],
       "parameters": {
-        "jsCode": "const cfg = $('⚙️ Settings').first().json;\nreturn (cfg.xAccounts || [])\n  .map(u => String(u).trim().replace(/^@/, ''))\n  .filter(Boolean)\n  .map(userName => ({ json: { userName } }));\n"
+        "jsCode": "const cfg = $('⚙️ Settings').first().json;\nconst lists = [\n  ['investor', cfg.xAccounts],\n  ['newsfeed', cfg.xNewsAccounts],\n];\nconst out = [];\nfor (const [profile, accounts] of lists) {\n  for (const raw of accounts || []) {\n    const userName = String(raw).trim().replace(/^@/, '');\n    if (userName) out.push({ json: { userName, profile } });\n  }\n}\nreturn out;\n"
       }
     },
     {
@@ -242,7 +242,7 @@
         340
       ],
       "parameters": {
-        "jsCode": "// twitterapi.io response → uniform items. Tweets live under \"tweets\" or \"data.tweets\"\n// depending on the API version. Images (charts) are passed on as URLs.\nconst cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst accounts = $('X: accounts').all();\nconst out = [];\n$input.all().forEach((res, i) => {\n  const payload = res.json || {};\n  const tweets = payload.tweets || payload.data?.tweets || [];\n  const user = accounts[i]?.json.userName || '';\n  for (const tw of tweets.slice(0, cfg.maxItemsPerSource)) {\n    const created = Date.parse(tw.createdAt);\n    if (!(created >= since)) continue;\n    const media = tw.extendedEntities?.media || tw.entities?.media || [];\n    out.push({\n      json: {\n        uid: `x:${tw.id}`,\n        source: 'x',\n        author: tw.author?.name ? `${tw.author.name} (@${user})` : `@${user}`,\n        title: (tw.text || '').slice(0, 90).replace(/\\n/g, ' '),\n        url: tw.url || `https://x.com/${user}/status/${tw.id}`,\n        published: new Date(created).toISOString(),\n        text: tw.text || '',\n        images: media.filter(m => m.type === 'photo').map(m => m.media_url_https),\n      },\n    });\n  }\n});\nreturn out;\n"
+        "jsCode": "// twitterapi.io response → uniform items. Tweets live under \"tweets\" or \"data.tweets\"\n// depending on the API version. Images (charts) are passed on as URLs.\nconst cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nconst accounts = $('X: accounts').all();\nconst out = [];\n$input.all().forEach((res, i) => {\n  const payload = res.json || {};\n  const tweets = payload.tweets || payload.data?.tweets || [];\n  const user = accounts[i]?.json.userName || '';\n  const profile = accounts[i]?.json.profile || 'investor';\n  const limit = profile === 'newsfeed' ? tweets.length : cfg.maxItemsPerSource;\n  for (const tw of tweets.slice(0, limit)) {\n    const created = Date.parse(tw.createdAt);\n    if (!(created >= since)) continue;\n    const media = tw.extendedEntities?.media || tw.entities?.media || [];\n    out.push({\n      json: {\n        uid: `x:${tw.id}`,\n        source: 'x',\n        profile,\n        author: tw.author?.name ? `${tw.author.name} (@${user})` : `@${user}`,\n        title: (tw.text || '').slice(0, 90).replace(/\\n/g, ' '),\n        url: tw.url || `https://x.com/${user}/status/${tw.id}`,\n        published: new Date(created).toISOString(),\n        text: tw.text || '',\n        images: media.filter(m => m.type === 'photo').map(m => m.media_url_https),\n      },\n    });\n  }\n});\nreturn out;\n"
       }
     },
     {
@@ -305,7 +305,7 @@
         680
       ],
       "parameters": {
-        "jsCode": "const cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nreturn $input.all()\n  .map(r => r.json)\n  .filter(m => m.id && !m.error)\n  .filter(m => !m.date || Date.parse(m.date) >= since)\n  .map(m => {\n    const from = m.from?.value?.[0] || {};\n    return {\n      json: {\n        uid: `email:${m.id}`,\n        source: 'email',\n        author: from.name || from.address || m.from?.text || '',\n        title: m.subject || '(no subject)',\n        url: `https://mail.google.com/mail/u/0/#all/${m.id}`,\n        published: new Date(m.date || Date.now()).toISOString(),\n        text: (m.text || '').trim(),\n      },\n    };\n  });\n"
+        "jsCode": "const cfg = $('⚙️ Settings').first().json;\nconst since = Date.now() - cfg.lookbackHours * 3600 * 1000;\nreturn $input.all()\n  .map(r => r.json)\n  .filter(m => m.id && !m.error)\n  .filter(m => !m.date || Date.parse(m.date) >= since)\n  .map(m => {\n    const from = m.from?.value?.[0] || {};\n    return {\n      json: {\n        uid: `email:${m.id}`,\n        source: 'email',\n        profile: 'investor',\n        author: from.name || from.address || m.from?.text || '',\n        title: m.subject || '(no subject)',\n        url: `https://mail.google.com/mail/u/0/#all/${m.id}`,\n        published: new Date(m.date || Date.now()).toISOString(),\n        text: (m.text || '').trim(),\n      },\n    };\n  });\n"
       }
     },
     {
@@ -330,11 +330,11 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        1400,
+        2060,
         340
       ],
       "parameters": {
-        "numberInputs": 3
+        "numberInputs": 4
       }
     },
     {
@@ -343,11 +343,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1620,
+        2280,
         340
       ],
       "parameters": {
-        "jsCode": "// One Claude request for all new items: text plus the images from X posts.\nconst cfg = $('⚙️ Settings').first().json;\nconst items = $input.all().map(i => i.json).filter(j => j.uid);\nif (!items.length) return [];\n\nconst LABEL = { youtube: 'YouTube video', x: 'X post', email: 'Newsletter' };\nconst order = { youtube: 0, x: 1, email: 2 };\nitems.sort((a, b) =>\n  order[a.source] - order[b.source] ||\n  a.author.localeCompare(b.author) ||\n  a.published.localeCompare(b.published));\n\nconst system = `You are a content digest assistant. From the new content of the YouTube\nchannels, X accounts and newsletters the user follows, you write a summary in\n${cfg.reportLanguage} that is sent as a Telegram message.\n\nRules:\n- Group by source, then by author. Each group starts with an emoji and the author's name.\n- For each item: a one-line title, then the gist in 2-6 sentences: the main claims, arguments,\n  numbers, dates and price levels. If an image contains a chart, read the key levels off it.\n- Put the link on its own line at the end of the item.\n- Only state what the source says. If only the description of a video was available,\n  say so and do not invent its content.\n- Plain text, no Markdown (Telegram will not render it here): no **, no #, no tables.\n- No introduction or sign-off. If there are several items, a short summary paragraph may close the message.`;\n\nconst blocks = items.map((it, n) => {\n  const note = it.source === 'youtube' && !it.hasTranscript\n    ? '\\n(No transcript available, only the video description.)' : '';\n  const body = (it.text || '').slice(0, cfg.maxCharsPerItem);\n  return `### [${n + 1}] ${LABEL[it.source]} — ${it.author}\\nTitle: ${it.title}\\n` +\n         `Date: ${it.published}\\nLink: ${it.url}${note}\\n\\n${body}`;\n});\n\nconst content = [{\n  type: 'text',\n  text: `${items.length} new items:\\n\\n${blocks.join('\\n\\n---\\n\\n')}`,\n}];\nlet imageCount = 0;\nitems.forEach((it, n) => {\n  for (const url of (it.images || []).slice(0, 2)) {\n    if (imageCount >= cfg.maxImages) return;\n    content.push({ type: 'text', text: `Image for item [${n + 1}]:` });\n    content.push({ type: 'image', source: { type: 'url', url } });\n    imageCount++;\n  }\n});\n\nreturn [{\n  json: {\n    itemCount: items.length,\n    body: {\n      model: cfg.model,\n      max_tokens: 4000,\n      system,\n      messages: [{ role: 'user', content }],\n    },\n  },\n}];\n"
+        "jsCode": "// One Claude request per report type (profile). The prompts are the Hungarian\n// investment-report rules of the original Python project, adapted to a single\n// API call: no files, no tools, plain-text Telegram output.\nconst cfg = $('⚙️ Settings').first().json;\nconst items = $input.all().map(i => i.json).filter(j => j.uid);\nif (!items.length) return [];\n\nconst PLAIN_TEXT = `\nSIMA SZÖVEG\nA jelentés Telegram-üzenetként megy ki, és a Telegram itt nem alakítja át a\nMarkdownt. Ezért ne használj se csillagot, se kettőskeresztet, se táblázatot,\nse képhivatkozást: nyersen jelennének meg. A szerkezetet emojival kezdődő\nönálló sorok, üres sorok és • felsorolásjelek adják. A linket csupaszon írd ki.\nBevezetőt és elköszönést ne írj, és a kész szövegen kívül semmit ne válaszolj.`;\n\nconst STYLE = `\nSTÍLUS\nA jelentést telefonon olvassák.\n• Új gondolat = új bekezdés. Egy bekezdés egy dologról szóljon, legfeljebb 3-4 mondat.\n• Rövid mondatok. Ne fűzz össze három tagmondatot pontosvesszővel. Ha egy mondat két sornál hosszabb, vágd ketté.\n• Gondolatjelet ne használj a folyó szövegben, se hosszút, se szóközzel körülvett rövidet. Bontsd két mondatra, vagy tegyél kettőspontot, zárójelet, vesszőt. A számtartomány (2019-2020) rendben van, és a sablon fix elválasztói is maradnak.\n• Ne írj meta-nyelven (\"az elérhető adatok alapján\", \"az átiratból kiderül\"). Írd le, mit állít az illető.\n• Ne fújd fel a fontosságot (\"kritikus fordulópont\", \"ez mindent átír\"). Ha ő mondta, idézd, ha nem, hagyd el.\n• Fölösleges angol szó helyett magyart írj (\"setup\" helyett \"felállás\"). A bevett tőzsdei szakszó maradhat (support, ellenállás, momentum).\n• Ne legyen ütősebb, mint maga az állítás. A bizonytalanság mértéke marad: a \"figyeli\" ne legyen \"várja\", a \"szerinte\" ne tűnjön el.`;\n\nconst PROMPTS = {\n  investor: `Befektetési jelentést írsz magyarul a figyelt befektetők új tartalmairól\n(YouTube-videók, X-posztok, hírlevelek). Az olvasó követi ezeket az embereket,\nés azt akarja tudni: mit állít, mennyire biztos benne, és változott-e valamiben.\n\nA NYERSANYAG\nA felhasználói üzenetben elemenként egy blokk van: forrás, szerző, időpont\n(budapesti idő), cím, link, a videóknál a felirat forrása, majd a szöveg.\nA felirat-sor jelentése: \"youtube\" a videó saját felirata, \"whisper\" gépi\nátirat a hangsávból, \"NINCS\" esetén csak a cím és a leírás volt meg.\nAz X-posztok képei a blokkok után jönnek, \"Kép a [n]. elemhez\" felirattal.\nA videók képkockáit nem kapod meg, ezért a videóknál ne írj grafikonokról.\n\nA GRAFIKONOK\nEz a legfontosabb szabály. Ezek az emberek grafikonvezérelten dolgoznak: a\nszöveg azt mondja, \"ennél a szintnél\", a tényleges szint az ábrán van. Minden\nképet nézz meg, mielőtt írsz. Amit keresel rajtuk:\n• eszköz és időtáv (a chart fejlécében, pl. BTCUSD · 1W)\n• aktuális ár és a jelölt árszintek (support, ellenállás, célár)\n• berajzolt elemek: trendvonalak, zónák, nyilak, kézzel rajzolt árpálya\n• függőleges dátumvonalak: ezek idő-pivotok, gyakran ez a poszt lényege\n• indikátorok (Ichimoku-felhő, RSI, mozgóátlagok) és mit mutatnak\n• watchlist vagy portfólió, ha látszik\nHa a képen látott szám ellentmond a szövegnek, a kép az igaz. Írd is le:\n\"a szövegben 4700 szerepel, a grafikonon 65 446, a chart a helyes\".\nAmi nem grafikon (mém, arckép, reklám), arról ne írj.\n\nAMIT MINDEN ÁLLÍTÁSRÓL KI KELL NYERNI\nNe elégedj meg azzal, hogy \"bullish a Bitcoinra\". Ahol elhangzik:\n1. Eszköz: konkrétan mi (BTC, ETH, S&P 500, egyedi részvény)\n2. Irány: long, short, kivárás, készpénz\n3. Szintek: belépő, célár, invalidáció (ahol elbukik a tézis)\n4. Időtáv: napok, hetek, hónapok, évek. Ez kritikus: ugyanarra az eszközre gyakran rövid távon óvatos, hosszú távon bikás\n5. Meggyőződés: \"figyelem\", \"elkezdtem venni\" vagy \"nagy pozícióm van\"\n6. Van-e benne pénze: mond-e konkrét pozíciót, méretet, arányt\n7. Tézis vagy trade: hosszú távú világkép, vagy konkrét ügylet\nHa valamelyik nem hangzik el, ne találd ki: hagyd ki, vagy írd, hogy \"nem mond időtávot\".\n\nKorábbi jelentést nem kapsz. Arról, hogy mi változott a korábbiakhoz képest,\ncsak akkor írj, ha maga a szerző mondja.\n\nA JELENTÉS FORMÁJA\nSzemélyenként külön főszekció, ebben a szerkezetben:\n\n📈 <személy neve>\nÚj tartalom: <n> videó, <n> X-poszt, <n> hírlevél\n\n🎥 <a videó címe magyarul>\n<csatorna neve> · <dátum> · eredeti cím: <eredeti>\n\nLényeg: 3-5 mondat, 2-3 rövid bekezdésre bontva.\n\nRöviden: 1-3 mondat folyó szövegben arról, mit állít: melyik eszközre milyen\nirányt, milyen szintekkel, milyen időtávra és mekkora meggyőződéssel. Például:\n\"BTC-ben long, 58-67 ezer között gyűjt, 2027-ig 400 ezer fölötti célt lát, és pozícióban van.\"\n\n🔗 <link>\n\n𝕏 X-posztok, <személy neve> (@<felhasználónév>)\n• <dátum>: <lényeg magyarul>. <ha kép van: mit mutat a grafikon, konkrét szintekkel>\n🔗 <link>\n\n📧 <a hírlevél tárgya>, <dátum>\nLényeg: 3-5 mondat\nKonkrét ajánlás: <ha van, különben \"nincs\">\n\nA legvégén, egyszer:\n\n🧭 Összkép\n2-3 mondat: mi a fő üzenet.\n\nAz üres részeket hagyd ki. A \"Röviden\" sort csak akkor tedd be, ha van konkrét\nállítás. Az összesítés mindig folyó szöveg, táblázat soha. A @felhasználónevet\na poszt linkjéből vedd (x.com/<ez>/status/...). Ha egy poszt valaki másé\n(retweet vagy idézet), a sor elején jelöld: \"retweet @valaki posztjáról\".\n\nKÖTELEZŐ JELÖLÉSEK (a tartalom alá)\n• felirat: NINCS → \"Felirat nélkül: csak cím és leírás alapján.\" A tartalmáról ne állíts semmit.\n• felirat: whisper → \"Gépi átiratból: a nevek és számok pontatlanok lehetnek.\"\n• Szöveg és grafikon ellentmond → írd le mindkettőt, és hogy a grafikon az irányadó.\n\nAMIT SOHA NE CSINÁLJ\n• Ne találj ki számot. Ha a szöveg számai zavarosak és a chart sem mutatja, írd, hogy \"a szám az átiratban hibás, a grafikonon nem látszik\".\n• Ne adj saját befektetési tanácsot, és a jelentés végére se kerüljön saját ajánlás. Az ő véleményét ismerteted.\n• Ne minősítsd, hogy jó vagy rossz ötlet. Kivétel: ha egy állítás ellentmond egy korábbi sajátjának, azt tényként jelezd.\n• Ne írj a reklámokról: se az előfizetéséről és az áráról, se a szponzorokról.\n• Ne írj hosszan. Egy videó összefoglalója legfeljebb 200 szó.\n• A számok, árszintek, dátumok és tickerek pontossága minden stílusszabálynál fontosabb.\n${STYLE}\n${PLAIN_TEXT}`,\n\n  newsfeed: `Egy hírfigyelő X-fiók új posztjaiból írsz magyar összefoglalót. Nem\nfordítasz posztonként, és nem is elemzel: kiszeded, hogy mely projektekről\nvolt szó, és mi történt velük.\n\nEzek a fiókok (@aixbt_agent és hasonlók) naponta több tucat egy-két mondatos\nposztot írnak, kisbetűvel, protokollnevekkel és friss számokkal. Ugyanaz a\nprojekt gyakran több posztban is előjön, más-más számmal. Az olvasó nem a\nposztfolyamot akarja végigolvasni, hanem azt, hogy melyik projekttel mi\ntörtént, és mi ebből az, ami egy retail befektetőnek számít.\n\nA NYERSANYAG\nA felhasználói üzenetben posztonként egy blokk van: szerző, időpont (budapesti\nidő), link, szöveg. Ha egy poszthoz kép tartozik, az a blokkok után jön,\n\"Kép a [n]. elemhez\" felirattal.\n\nHOGYAN ÁLLÍTOD ÖSSZE\n1. Csoportosíts projekt szerint. Ami ugyanarról a projektről, protokollról,\ntokenről vagy cégről szól, egy blokkba kerül, akkor is, ha három poszt és\nórákkal odébb született. Ha egy poszt két projektet köt össze, oda tedd,\namelyikről többet mond, és a másikat említsd a mondatban.\n2. Blokkonként írd meg, mi történt, 2-4 mondatban. Konkrétan: mi a hír, milyen\nszámokkal, mikor. Ha a fiók több posztban is visszatért rá, fűzd össze őket,\nés ahol van, mondd meg az irányt (nőtt, esett, elindult, leállt).\n3. Rangsorold. Elöl az, aminek egy retail befektető szempontjából a legnagyobb\nsúlya van: pénzmozgás, tőzsdére kerülés, airdrop, hack vagy exploit,\nszabályozói döntés, nagy TVL- vagy forgalomváltozás, unlock,\ntokengazdaságtani változás. Hátra a kisebb hírek.\n4. Hagyd ki a zajt: a fiók önreklámját, a tartalom nélküli hangulatposztot, a\nmémet, a válaszolgatást, és azt a posztot, amiből nem derül ki, melyik\nprojektről van szó.\n5. Ami nem projekt, de számít (makró, ETF-beáramlás, tőzsdei leállás,\nstablecoin-mozgás, szabályozás), az a végén, az \"Egyéb\" blokkba kerül.\n\nAMIT PONTOSAN MEGTARTASZ\n• A projektneveket, eredeti alakjukban, és ha van, a tickert egyszer: Hyperliquid (HYPE). Ne fordítsd le, ne írd körül.\n• A számokat. Az érték nem kerekedik és nem változik. Az ezres tagolás magyaros (4,2 milliárd, nem 4.2 billion), a tizedesjel vessző. A százalék, a szorzó (10x) és az időpont ugyanaz marad.\n• A linkeket: minden blokk alatt ott a forrásposzt(ok) linkje.\n• Tickerek, protokoll- és cégnevek, bevett szakszavak (perp, airdrop, staking, L2, TVL, funding rate) maradnak, a mondat körülöttük magyar.\n• Ha egy rövidítés önmagában érthetetlen, első előforduláskor tegyél mögé rövid zárójeles magyarázatot: \"TVL (a protokollba zárt tőke)\".\n\nAMIT NEM CSINÁLSZ\n• Nem adsz befektetési tanácsot, és nem is utalsz rá.\n• Nem jósolsz: nincs \"ez tovább emelkedhet\", nincs célár, nincs kitekintés.\n• Nem minősítesz: sem a projektet, sem a posztot, sem a fiókot.\n• Nem teszel hozzá olyat, ami nincs a posztokban.\n• Nem ellenőrzöd a tényeket. Kivétel: ha a poszt szövege és a képe mást mond, azt egy tagmondatban jelezd.\n• Nem írsz összképet vagy tanulságot a végére.\n\nKÉPEK\nA legtöbb poszt csak szöveg. Ha van kép, és érdemi információt hordoz\n(grafikon, táblázat, számokat mutató képernyőkép), a mondatba építsd bele, amit\nmutat. Mémről, logóról, arcképről, reklámról ne írj.\n\nA JELENTÉS FORMÁJA\n\n🗞️ <fiók neve> (@<felhasználónév>): <n> poszt, <ÉÉÉÉ. hónap NN. ÓÓ:PP>\n\n<Projekt neve> (<TICKER>) — <mi történt vele, 2-4 mondat.>\n🔗 <link> <link>\n\n<Projekt neve> — <mi történt vele.>\n🔗 <link>\n\nEgyéb — <a projekthez nem köthető, de lényeges hírek, egy-egy mondattal.>\n🔗 <link> <link>\n\nRészletek:\n• A fejléc időpontja a legfrissebb poszté (az időpontok már budapesti idő szerint vannak).\n• Egy projekt egy blokk, két blokk között üres sor. Nincs alcím, nincs felsorolásjel, a blokk folyó szöveg.\n• Ha több poszt tartozik egy blokkhoz, a linkek egy sorban, szóközzel elválasztva, időrendben.\n• Like-számot csak akkor írj, ha egy poszt kiugróan sok reakciót kapott, és akkor is a mondatba építve.\n• Ha egy poszt retweet vagy idézet, a mondatban jelöld, kitől.\n• Az \"Egyéb\" blokk mindig az utolsó, és ha nincs mit beletenni, kimarad.\n• Ha egyetlen érdemi hír sincs, a fejléc alá egy sor: nem volt érdemi hír.\n• Több figyelt fióknál fiókonként külön fejléc és külön blokksor.\n${STYLE}\n${PLAIN_TEXT}`,\n\n  explainer: `Ismeretterjesztő és önfejlesztési YouTube-videókból írsz részletes,\nmagyarázó magyar összefoglalót. Az olvasó nem nézi meg a videót, de meg akarja\nérteni: a gondolatmenetet akarja, a magyarázatokkal és a példákkal együtt,\nolyan részletesen, hogy a videó nélkül is használni tudja.\n\nEz nem befektetési jelentés. Nincs eszköz, árszint, időtáv. Van helyette:\nfogalmak, mechanizmusok (miért működik valami úgy), példák és gyakorlati lépések.\n\nA NYERSANYAG\nA felhasználói üzenetben videónként egy blokk van: csatorna, időpont\n(budapesti idő), cím, link, a felirat forrása, majd a teljes felirat vagy\nátirat. A felirat-sor jelentése: \"youtube\" a videó saját felirata, \"whisper\"\ngépi átirat a hangsávból, \"NINCS\" esetén csak a cím és a leírás volt meg.\nKépkockákat nem kapsz, ezért ábrákról ne írj, és időbélyeget se adj meg.\n\nA JELENTÉS FORMÁJA\nVideónként egy főszekció, a videók között egy ——— sor.\n\n📚 Önfejlesztés, <ÉÉÉÉ. hónap NN.>\n<n> új videó: <csatornánként darabszám>\n\n🎬 <a cím magyarul>\n<csatorna> · <megjelenés dátuma> · eredeti cím: <eredeti>\n\nMiről szól: 3-4 mondat. Mi a kérdés, amire a videó válaszol, és mi a válasza röviden.\n\n▸ <a gondolatmenet első nagy egysége, saját címmel>\n2-4 rövid bekezdés. Mit állít, miért (a mechanizmus, amit leír), és milyen\npéldát, esetet, kutatást hoz hozzá.\n\n▸ <második egység>\n\n▸ <harmadik egység>\n\nKulcsfogalmak:\n• <fogalom> (<eredeti idegen kifejezés, ha van>): <1-2 mondatos magyarázat, ahogy ő érti>\n\nGyakorlati lépések:\n1. <konkrét teendő, ahogy ő javasolja; ha feltételhez köti, azzal együtt>\n\nAmit érdemes megjegyezni: 1-2 mondat, a videó legfontosabb gondolata.\n\n🔗 <link>\n\nA gondolatmenet egységei a videó saját szerkezetét kövessék, a sorrendjével\negyütt. Ha a videó számozott listára vagy állomásokra épül, az egységek a lista\npontjai. Az üres részeket hagyd ki: ha nincs gyakorlati tanács, nincs\n\"Gyakorlati lépések\" blokk.\n\nHa az eredeti cím már magyar (például a Tízes Lista videóinál), a főcím maga az\neredeti cím, és a csatorna-sorból az \"eredeti cím\" rész elhagyható. A Tízes Lista\nismeretterjesztő csatorna (társadalom, történelem, gazdaság, Magyarország): a\nszámokat, évszámokat és a forrásokat, amikre hivatkozik, pontosan vedd át.\n\nTERJEDELEM\nVideónként 500-900 szó, egy 60 percnél hosszabb résznél legfeljebb 1200. Ha nem\nfér bele, a mellékszál és az ismétlés marad ki, nem a magyarázat és a példa.\n\nKÖTELEZŐ JELÖLÉSEK (a videó alá)\n• felirat: NINCS → \"Felirat nélkül: csak a cím és a leírás alapján.\" A tartalmáról ne állíts semmit, a formát se töltsd ki.\n• felirat: whisper → \"Gépi átiratból: a nevek pontatlanok lehetnek.\"\n\nTARTALMI SZABÁLYOK\n• Magyarul írsz. Ha a videó idegen nyelvű, a bevett szakkifejezést egyszer, zárójelben add meg eredetiben: mély munka (deep work).\n• Az ő gondolatait ismerteted. Ne told hozzá a saját véleményedet, ne minősítsd, és ne adj saját tanácsot. A \"Gyakorlati lépések\" is az ő javaslatai.\n• Ne találj ki kutatást, számot, könyvcímet. Ha csak utal rá (\"egy tanulmány szerint\"), úgy is írd.\n• Ne írj a reklámokról, szponzorokról, a saját kurzusáról, hírleveléről.\n• A magyarázat nem rövidülhet a tömörség kedvéért: itt a részletesség a cél.\n${STYLE}\n${PLAIN_TEXT}`,\n};\n\nconst MAX_TOKENS = { investor: 8000, newsfeed: 6000, explainer: 12000 };\nconst LABEL = { youtube: 'YouTube-videó', x: 'X-poszt', email: 'Hírlevél' };\nconst order = { youtube: 0, x: 1, email: 2 };\nconst local = iso => new Date(iso).toLocaleString('sv-SE', { timeZone: 'Europe/Budapest' }).slice(0, 16);\nconst now = local(new Date().toISOString());\n\nconst out = [];\nfor (const profile of ['investor', 'newsfeed', 'explainer']) {\n  const group = items\n    .filter(it => (it.profile || 'investor') === profile)\n    .sort((a, b) =>\n      a.author.localeCompare(b.author) ||\n      order[a.source] - order[b.source] ||\n      a.published.localeCompare(b.published));\n  if (!group.length) continue;\n\n  const blocks = group.map((it, n) => {\n    const lines = [\n      `### [${n + 1}] ${LABEL[it.source]} · ${it.author} · ${local(it.published)}`,\n      `cím: ${it.title}`,\n      `link: ${it.url}`,\n    ];\n    if (it.source === 'youtube') {\n      const src = it.transcriptSource || (it.hasTranscript ? 'youtube' : 'none');\n      lines.push(src === 'none'\n        ? 'felirat: NINCS (csak a cím és a leírás)'\n        : `felirat: ${src}${it.transcriptLanguage ? ` (${it.transcriptLanguage})` : ''}`);\n    }\n    lines.push('szöveg:', (it.text || '').slice(0, cfg.maxCharsPerItem));\n    return lines.join('\\n');\n  });\n\n  const content = [{\n    type: 'text',\n    text: `A jelentés időpontja: ${now} (budapesti idő). ${group.length} új elem:\\n\\n` +\n          blocks.join('\\n\\n---\\n\\n'),\n  }];\n  let imageCount = 0;\n  if (profile !== 'explainer') {\n    group.forEach((it, n) => {\n      for (const url of (it.images || []).slice(0, 2)) {\n        if (imageCount >= cfg.maxImages) return;\n        content.push({ type: 'text', text: `Kép a [${n + 1}]. elemhez:` });\n        content.push({ type: 'image', source: { type: 'url', url } });\n        imageCount++;\n      }\n    });\n  }\n\n  out.push({\n    json: {\n      profile,\n      chatId: cfg.telegramChatIds?.[profile] || cfg.telegramChatId,\n      itemCount: group.length,\n      body: {\n        model: cfg.model,\n        max_tokens: MAX_TOKENS[profile],\n        system: PROMPTS[profile],\n        messages: [{ role: 'user', content }],\n      },\n    },\n  });\n}\nreturn out;\n"
       }
     },
     {
@@ -356,7 +356,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1840,
+        2500,
         340
       ],
       "parameters": {
@@ -377,7 +377,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.body) }}",
         "options": {
-          "timeout": 300000
+          "timeout": 600000
         }
       }
     },
@@ -387,11 +387,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2060,
+        2720,
         340
       ],
       "parameters": {
-        "jsCode": "// Telegram allows at most 4096 characters per message, so split at paragraph boundaries.\nconst res = $input.first().json;\nconst text = (res.content || [])\n  .filter(c => c.type === 'text')\n  .map(c => c.text)\n  .join('\\n')\n  .trim();\nif (!text) throw new Error('Empty Claude response: ' + JSON.stringify(res).slice(0, 500));\n\nconst stamp = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Budapest' });\nconst LIMIT = 3900;\nconst chunks = [];\nlet current = `📰 Content Digest — ${stamp}\\n\\n`;\nfor (let para of text.split(/\\n{2,}/)) {\n  if (current.length + para.length + 2 > LIMIT && current.trim()) {\n    chunks.push(current.trim());\n    current = '';\n  }\n  while (para.length > LIMIT) {\n    chunks.push(para.slice(0, LIMIT));\n    para = para.slice(LIMIT);\n  }\n  current += para + '\\n\\n';\n}\nif (current.trim()) chunks.push(current.trim());\n\nreturn chunks.map((chunk, i) => ({\n  json: { chunk: chunks.length > 1 ? `${chunk}\\n\\n(${i + 1}/${chunks.length})` : chunk },\n}));\n"
+        "jsCode": "// One input item per report. Telegram allows at most 4096 characters per\n// message, so each report is split at paragraph boundaries.\nconst reports = $('Build prompt').all();\nconst out = [];\n$input.all().forEach((res, n) => {\n  const { profile, chatId } = reports[n].json;\n  const text = (res.json.content || [])\n    .filter(c => c.type === 'text')\n    .map(c => c.text)\n    .join('\\n')\n    .trim();\n  if (!text) throw new Error(`Empty Claude response (${profile}): ` + JSON.stringify(res.json).slice(0, 500));\n\n  const LIMIT = 3900;\n  const chunks = [];\n  let current = '';\n  for (let para of text.split(/\\n{2,}/)) {\n    if (current.length + para.length + 2 > LIMIT && current.trim()) {\n      chunks.push(current.trim());\n      current = '';\n    }\n    while (para.length > LIMIT) {\n      chunks.push(para.slice(0, LIMIT));\n      para = para.slice(LIMIT);\n    }\n    current += para + '\\n\\n';\n  }\n  if (current.trim()) chunks.push(current.trim());\n\n  chunks.forEach((chunk, i) => out.push({\n    json: {\n      chatId,\n      chunk: chunks.length > 1 ? `${chunk}\\n\\n(${i + 1}/${chunks.length})` : chunk,\n    },\n  }));\n});\nreturn out;\n"
       }
     },
     {
@@ -400,15 +400,92 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2280,
+        2940,
         340
       ],
       "parameters": {
-        "chatId": "={{ $('⚙️ Settings').first().json.telegramChatId }}",
+        "chatId": "={{ $json.chatId }}",
         "text": "={{ $json.chunk }}",
         "additionalFields": {
           "appendAttribution": false
         }
+      }
+    },
+    {
+      "id": "c62b755e-bcdb-594c-941a-146cc1af93af",
+      "name": "YouTube: needs Whisper?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1380,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5f939a14-d8d7-50d1-8a3f-d5c2fab07603",
+              "leftValue": "={{ !$json.hasTranscript && Boolean($('⚙️ Settings').first().json.whisperUrl) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "2af9a3bb-b704-521f-929f-663d20ef28f7",
+      "name": "YouTube: Whisper (local)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        -60
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('⚙️ Settings').first().json.whisperUrl.replace(/\\/$/, '') }}/transcribe",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ videoId: $json.videoId, languages: $('⚙️ Settings').first().json.whisperLanguages || [] }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 0
+            }
+          },
+          "timeout": 3600000
+        }
+      }
+    },
+    {
+      "id": "920bae33-32af-5049-90ad-9613caef7a20",
+      "name": "YouTube: attach Whisper",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        -60
+      ],
+      "parameters": {
+        "jsCode": "// Whisper transcript in place of the description. If the service failed\n// (not running, video too long, download blocked) the description stays.\nreturn $input.all().map((res, i) => {\n  const video = $('YouTube: needs Whisper?').itemMatching(i).json;\n  const text = typeof res.json.text === 'string' ? res.json.text.trim() : '';\n  return {\n    json: {\n      ...video,\n      text: text || video.text,\n      hasTranscript: Boolean(text),\n      transcriptSource: text ? 'whisper' : 'none',\n      transcriptLanguage: text ? (res.json.language || '') : '',\n      whisperError: text ? undefined : (res.json.error?.message || res.json.error || 'no response'),\n    },\n  };\n});\n"
       }
     },
     {
@@ -421,7 +498,7 @@
         100
       ],
       "parameters": {
-        "content": "## ⚙️ Start here\nAll configuration lives in the **Settings** node: the YouTube channels, X accounts and newsletter senders to follow, the Telegram chat and the model.",
+        "content": "## ⚙️ Start here\nAll configuration lives in the **Settings** node: the sources to follow per report type, the Whisper service, the Telegram chats and the model.",
         "width": 460,
         "height": 460,
         "color": 1
@@ -437,8 +514,8 @@
         -140
       ],
       "parameters": {
-        "content": "## ▶️ YouTube\nChannel → uploads playlist → latest videos → only the ones not seen before → transcript (Supadata, optional)",
-        "width": 1540,
+        "content": "## ▶️ YouTube\nChannel → uploads playlist → latest videos → only the ones not seen before → captions (Supadata, optional) → no captions? → local Whisper service (optional)",
+        "width": 2260,
         "height": 300,
         "color": 3
       }
@@ -481,11 +558,11 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1360,
+        2020,
         200
       ],
       "parameters": {
-        "content": "## 🤖 Summary\nOne Claude request for all new items (text + X images); the reply goes to Telegram in chunks of up to 4096 characters",
+        "content": "## 🤖 Summary\nOne Claude request per report type (investor / newsfeed / explainer), each with its own Hungarian prompt; the replies go to Telegram in chunks of up to 4096 characters",
         "width": 1060,
         "height": 300,
         "color": 5
@@ -672,7 +749,7 @@
       "main": [
         [
           {
-            "node": "All new content",
+            "node": "YouTube: needs Whisper?",
             "type": "main",
             "index": 0
           }
@@ -741,6 +818,46 @@
             "node": "Telegram: send",
             "type": "main",
             "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: needs Whisper?": {
+      "main": [
+        [
+          {
+            "node": "YouTube: Whisper (local)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "All new content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: Whisper (local)": {
+      "main": [
+        [
+          {
+            "node": "YouTube: attach Whisper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: attach Whisper": {
+      "main": [
+        [
+          {
+            "node": "All new content",
+            "type": "main",
+            "index": 3
           }
         ]
       ]
