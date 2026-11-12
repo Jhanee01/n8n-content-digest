@@ -29,12 +29,13 @@ flowchart LR
     C --> YT[YouTube Data API<br/>legújabb videók]
     C --> X[twitterapi.io<br/>legutóbbi posztok]
     C --> M[Gmail<br/>hírlevelek a feladóktól]
-    YT --> D1[csak az új] --> S[felirat<br/>Supadata] --> F1[képkockák<br/>saját gépen]
-    F1 -->|nincs felirat| W[Whisper<br/>saját gépen]
+    YT --> D1[csak az új] --> S[időbélyeges felirat<br/>Supadata]
+    S -->|nincs felirat| W[Whisper<br/>saját gépen]
+    S --> F1[képkockák tartalom alapján<br/>saját gépen]
+    W --> F1
     X --> D2[csak az új] --> F2[videó-képkockák<br/>saját gépen]
     M --> D3[csak az új]
     F1 --> MG[Összes új tartalom]
-    W --> MG
     F2 --> MG
     D3 --> MG
     MG --> P[Prompt<br/>jelentéstípusonként] --> AI[Claude API] --> TG[Telegram<br/>4096 karakteres darabok]
@@ -81,15 +82,29 @@ szerző mondja.
 A figyelt emberek a charton mutatják az árszintet, közben annyit mondanak:
 „ennél a szintnél”. Ezért az átiratból gyakran hiányzik a szám. Az `investor`
 típusnál a helyi szolgáltatás (`whisper-service/`) minden videóból képkockákat
-is kivág, a YouTube-videókból és az X-posztokhoz csatolt videókból is:
-letölti a képsávot, ffmpeg-gel megkeresi a jelenetváltásokat, és legfeljebb
-`framesPerVideo` darabot tart meg, a videó teljes hosszán elosztva. Ha a
-videóban nincs érdemi vágás (végig ugyanaz a chart), egyenletesen mintavételez.
-A Claude a kockákat képként kapja, mindegyiket az elem számával és az
-időponttal felcímkézve.
+is kivág, a YouTube-videókból és az X-posztokhoz csatolt videókból is,
+videónként legfeljebb `framesPerVideo` darabot.
 
-A kockák többsége beszélő fej, ezekről a prompt szerint nem ír a modell. A
-`maxFramesPerReport` egy jelentés összes kockáját korlátozza, és egyenlően
+A YouTube-videóknál a kockákat a tartalom alapján választja. A Supadata
+felirata és a Whisper átirata is időbélyeges, és a szolgáltatás
+(`whisper-service/moments.py`) néhány másodpercenként pontozza a beszédet: a
+képernyőre mutató kifejezéseket („look at”, „this level”, „on the chart”, és
+ezek román és magyar megfelelőit), valamint az árszintnek vagy százaléknak
+látszó számokat. A kockák kb. kétharmada a legerősebb ilyen pillanatokban
+készül, két másodperccel a mondat kezdete után, mert a chart általában akkor
+kerül a képre. A többi ffmpeg-gel talált jelenetváltásnál, a videó teljes
+hosszán elosztva és a már választottaktól távol, hogy a videó többi része se
+maradjon ki. Átirat nélkül (és az X-videóknál, amelyekhez nincs átirat) minden
+kocka jelenetváltásnál készül; ha a videóban nincs érdemi vágás, egyenletesen
+mintavételez.
+
+Egy 20 perces Chifoi-videón a jelenetváltásos kockák közül 10-ből 3-on volt
+chart; a tartalom alapján választott 7 kockából 5-ön, mindegyiken más.
+
+A Claude a kockákat képként kapja, mindegyiket az elem számával, az
+időponttal és az akkor elhangzó mondattal felcímkézve, így az ábrát a
+mondathoz kötheti. A csak beszélő fejet mutató kockákról a prompt szerint nem
+ír. A `maxFramesPerReport` egy jelentés összes kockáját korlátozza, és egyenlően
 osztja el a videók között; egy 1280×720-as kocka körülbelül 1200 bemeneti
 token. Ha a szolgáltatás nem fut, a videó kocka nélkül megy tovább, és a
 blokkjában `képkockák: NINCS` áll, így a modell nem ír olyan grafikonról, amit
@@ -309,13 +324,16 @@ A videós képkockákat és az előfizetéses utat n8n 2.8.4-en, végig tesztelt
 A YouTube, a Supadata és a twitterapi.io mock volt, de valódi tartalommal: egy
 7 perces VirtualBacon-videó a feliratával, egy Chifoi-poszt három charttal és
 egy Chifoi-poszt, ami egy videót idéz. A képkocka-szolgáltatás és a Claude
-valódi volt. Minden node egyszer futott. A videó 10 kockát kapott, az idézett
-videó 8-at (a videó az idézett posztban van, ezért a `hasVideo` ott is
-keres), a képes poszt elkerülte a képkocka-ágat, és a Claude 20 képet kapott.
-A jelentést az előfizetés írta a `/claude` végponton át, 45 másodperc alatt,
-és olyan szinteket is leolvasott a kockákról, amelyek a beszédben nem
-hangzanak el. Önmagában a szolgáltatás a hibás tokent, a hibás
-videóazonosítót és a YouTube-on és X-en kívüli URL-t visszautasította.
+valódi volt. Minden node egyszer futott. A videó 199 időbélyeges
+feliratszakasszal érkezett, és 10 kockát kapott, ebből 4-et a tartalom
+alapján, mindegyiket az akkor elhangzó mondattal. Az idézett videó 8 kockát
+kapott jelenetváltásnál (a videó az idézett posztban van, ezért a `hasVideo`
+ott is keres), a képes poszt pedig elkerülte a képkocka-ágat. A jelentést az
+előfizetés írta a `/claude` végponton át, 45 másodperc alatt, és olyan
+szinteket is leolvasott a kockákról, amelyek a beszédben nem hangzanak el.
+Önmagában a szolgáltatás a hibás tokent, a hibás videóazonosítót és a
+YouTube-on és X-en kívüli URL-t visszautasította, átirat nélkül pedig a
+korábbiak szerint minden kockát jelenetváltásnál választott.
 
 Az alábbi képernyőkép ez a futás, a szerkesztőből, a Manual triggerről
 indítva. A Telegram is mock volt (a hitelesítés alap-URL-je a mockra
@@ -331,6 +349,7 @@ csak azt jelzi, hogy a hitelesítésük nem volt hozzárendelve; egyik sem futot
 workflows/content-digest.json    a fő workflow, benne a promptokkal
 workflows/error-alert.json       hibajelző workflow (Error Trigger → Telegram)
 whisper-service/server.py        helyi szolgáltatás: Whisper-átirat és videó-képkockák
+whisper-service/moments.py       a képkockák pillanatait választja az időbélyeges átiratból
 whisper-service/requirements.txt a szolgáltatás Python-függőségei
 docker-compose.yml               helyi n8n egy paranccsal
 docs/                            képernyőképek

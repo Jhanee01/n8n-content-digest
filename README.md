@@ -31,12 +31,13 @@ flowchart LR
     C --> YT[YouTube Data API<br/>latest videos]
     C --> X[twitterapi.io<br/>latest posts]
     C --> M[Gmail<br/>newsletters from senders]
-    YT --> D1[new only] --> S[captions<br/>Supadata] --> F1[frames<br/>on your machine]
-    F1 -->|no captions| W[Whisper<br/>on your machine]
+    YT --> D1[new only] --> S[timestamped captions<br/>Supadata]
+    S -->|no captions| W[Whisper<br/>on your machine]
+    S --> F1[frames picked by content<br/>on your machine]
+    W --> F1
     X --> D2[new only] --> F2[video frames<br/>on your machine]
     M --> D3[new only]
     F1 --> MG[All new content]
-    W --> MG
     F2 --> MG
     D3 --> MG
     MG --> P[Prompt<br/>per report type] --> AI[Claude API] --> TG[Telegram<br/>4096-character chunks]
@@ -81,14 +82,29 @@ report, it can't tell what changed since last time unless the author says so.
 The people this workflow follows draw their price levels on a chart while
 saying "at this level", so the transcript alone often misses the numbers. For
 the `investor` report type the local service (`whisper-service/`) also cuts
-frames from every video, the YouTube ones and the videos attached to X posts:
-it downloads the picture track, finds the scene changes with ffmpeg and keeps
-up to `framesPerVideo` of them, spread over the whole video. If the video has
-no real cuts (one chart shown throughout), it samples evenly instead. Claude
-gets the frames as images, each labelled with its item and timestamp.
+frames from every video, the YouTube ones and the videos attached to X posts,
+up to `framesPerVideo` each.
 
-Most frames show a talking head, and the prompt tells the model to ignore
-those. `maxFramesPerReport` caps the frames per report and is shared evenly
+For YouTube videos the frames are picked by content. Supadata's captions and
+Whisper's transcript both come with timestamps, and the service
+(`whisper-service/moments.py`) scores every few seconds of speech: phrases
+that point at the screen ("look at", "this level", "on the chart", and their
+Romanian and Hungarian counterparts) and numbers that look like prices or
+percentages. About two thirds of the frames are cut at the strongest of these
+moments, two seconds after the sentence starts, because the chart usually
+comes up then. The rest come from scene changes found with ffmpeg, spread
+over the whole video and away from the ones already picked, so the other
+parts of the video aren't missed. Without a transcript (and for X videos,
+which have none) every frame comes from scene changes; if the video has no
+real cuts, it samples evenly.
+
+On a 20-minute Chifoi video, frames at scene changes showed a chart on 3 of
+10; picked by content, 5 of the 7 content frames were charts, each a
+different one.
+
+Claude gets the frames as images, each labelled with its item, its timestamp
+and what is said at that moment, so it can tie the chart to the sentence. The
+prompt tells it to ignore the frames that only show a talking head. `maxFramesPerReport` caps the frames per report and is shared evenly
 between the videos; a 1280×720 frame costs about 1,200 input tokens. If the
 service isn't running, the video goes on without frames, and its block says
 `képkockák: NINCS`, so the model doesn't write about charts it hasn't seen.
@@ -303,13 +319,15 @@ The video frames and the subscription route were tested end to end on n8n
 2.8.4. YouTube, Supadata and twitterapi.io were mocked with real content: a
 7-minute VirtualBacon video with its captions, a Chifoi post with three chart
 images, and a Chifoi post quoting a video. The frames service and Claude were
-real. Every node ran once. The video got 10 frames, the quoted video 8 (the
-video sits in the quoted post, so `hasVideo` also looks there), the image
-post went past the frames branch, and Claude received 20 images. The report
-was written on a subscription through `/claude` in 45 seconds and read
-levels off the frames that the speech never mentions. On its own, the
-service rejected a wrong token, a wrong video ID and a URL outside YouTube
-and X.
+real. Every node ran once. The video came with 199 timestamped caption
+pieces and got 10 frames, 4 of them picked by content, each with the
+sentence said at that moment. The quoted video got 8 frames at scene changes
+(the video sits in the quoted post, so `hasVideo` also looks there), and the
+image post went past the frames branch. The report was written on a
+subscription through `/claude` in 45 seconds and read levels off the frames
+that the speech never mentions. On its own, the service rejected a wrong
+token, a wrong video ID and a URL outside YouTube and X, and without a
+transcript it picked every frame at scene changes as before.
 
 The screenshot below is that run, started from the Manual trigger in the
 editor. Telegram was mocked too (the credential's base URL pointed at the
@@ -325,6 +343,7 @@ weren't attached; neither of them ran.
 workflows/content-digest.json    the main workflow, prompts included
 workflows/error-alert.json       error alert workflow (Error Trigger → Telegram)
 whisper-service/server.py        local service: Whisper transcripts and video frames
+whisper-service/moments.py       picks frame moments from the timestamped transcript
 whisper-service/requirements.txt the service's Python dependencies
 docker-compose.yml               local n8n with one command
 docs/                            screenshots
