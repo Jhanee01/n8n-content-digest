@@ -9,7 +9,8 @@ channel. It never reports the same video or post twice.
 summary, the model pulls out what each followed investor claims: which asset,
 which direction, which price levels, over what time frame, how strongly they
 believe it, and whether they have money in it. It reads the levels off the
-charts attached to X posts. It never gives investment advice of its own.
+charts, both the ones attached to X posts and frames cut from the videos. It
+never gives investment advice of its own.
 
 It's an n8n port of a system I originally wrote in Python, which runs on the
 Windows Task Scheduler and writes its reports with Claude Code, and it uses the
@@ -30,13 +31,13 @@ flowchart LR
     C --> YT[YouTube Data API<br/>latest videos]
     C --> X[twitterapi.io<br/>latest posts]
     C --> M[Gmail<br/>newsletters from senders]
-    YT --> D1[new only] --> S[captions<br/>Supadata]
-    S -->|no captions| W[Whisper<br/>on your machine]
-    X --> D2[new only]
+    YT --> D1[new only] --> S[captions<br/>Supadata] --> F1[frames<br/>on your machine]
+    F1 -->|no captions| W[Whisper<br/>on your machine]
+    X --> D2[new only] --> F2[video frames<br/>on your machine]
     M --> D3[new only]
-    S --> MG[All new content]
+    F1 --> MG[All new content]
     W --> MG
-    D2 --> MG
+    F2 --> MG
     D3 --> MG
     MG --> P[Prompt<br/>per report type] --> AI[Claude API] --> TG[Telegram<br/>4096-character chunks]
 ```
@@ -72,10 +73,38 @@ reads no files and uses no tools, and the output is plain text. The Telegram
 node doesn't render Markdown here, so the structure comes from lines that
 start with an emoji and from blank lines.
 
-Two things from the original are left out. The model doesn't get frames from
-the videos here, only the images attached to X posts. And since it has no
-previous report, it can't tell what changed since last time unless the author
-says so.
+One thing from the original is left out: since the model has no previous
+report, it can't tell what changed since last time unless the author says so.
+
+### Charts in videos
+
+The people this workflow follows draw their price levels on a chart while
+saying "at this level", so the transcript alone often misses the numbers. For
+the `investor` report type the local service (`whisper-service/`) also cuts
+frames from every video, the YouTube ones and the videos attached to X posts:
+it downloads the picture track, finds the scene changes with ffmpeg and keeps
+up to `framesPerVideo` of them, spread over the whole video. If the video has
+no real cuts (one chart shown throughout), it samples evenly instead. Claude
+gets the frames as images, each labelled with its item and timestamp.
+
+Most frames show a talking head, and the prompt tells the model to ignore
+those. `maxFramesPerReport` caps the frames per report and is shared evenly
+between the videos; a 1280×720 frame costs about 1,200 input tokens. If the
+service isn't running, the video goes on without frames, and its block says
+`képkockák: NINCS`, so the model doesn't write about charts it hasn't seen.
+Set `framesPerVideo` to 0 to turn frames off.
+
+### Claude subscription instead of an API key
+
+By default the reports are written through the Anthropic API. If you have a
+Claude subscription and Claude Code installed and logged in on the machine
+that runs the local service, set `claudeUrl` (usually the same address as
+`whisperUrl`). The request then goes to the service's `/claude` endpoint,
+which runs `claude -p` with the same prompt and images and answers in the
+API's format. The CLI runs without tools, MCP servers or settings, in an empty
+folder, and `ANTHROPIC_API_KEY` is removed from its environment so the
+subscription is used. The reply also carries what the call would have cost on
+the API (`costUsd`).
 
 ### Videos without captions
 
@@ -128,7 +157,8 @@ The other settings are environment variables: `WHISPER_PORT`, `WHISPER_MODEL`
 (`small` by default; `medium` doesn't fit in 4 GB of VRAM),
 `WHISPER_MAX_MINUTES` (180 by default) and `WHISPER_HOST` (`0.0.0.0` by
 default, so the container can reach it). It transcribes one video at a time,
-and other requests wait in line.
+and other requests wait in line. Frames have their own queue, so they don't
+wait for a transcription. For frames it only downloads from YouTube and X.
 
 ### 3. Import
 
@@ -142,8 +172,9 @@ You need seven credentials, each attached to the matching nodes.
 The two YouTube HTTP nodes (uploads playlist, latest videos) use a Query Auth credential named `key`, with your YouTube
 Data API v3 key as the value. The captions node (Supadata) uses
 Header Auth named `x-api-key`. It's optional: without it, every video goes to
-Whisper. The Whisper node also uses Header Auth, named `X-Whisper-Token`, with
-the service's token. The X node uses `X-API-Key` with your twitterapi.io key,
+Whisper. The Whisper node, the two frames nodes (YouTube and X) and the
+`Claude: summarize (subscription)` node share one Header Auth credential,
+named `X-Whisper-Token`, with the service's token. The X node uses `X-API-Key` with your twitterapi.io key,
 and the Claude node uses `x-api-key` with your Anthropic API key.
 
 The Gmail node connects to your mailbox with Gmail OAuth2. The two Telegram
@@ -168,10 +199,13 @@ xNewsAccounts:     ['aixbt_agent'],                // newsfeed
 explainerChannels: ['@tizeslista_hu'],             // explainer
 whisperUrl:        'http://host.docker.internal:8790',
 whisperLanguages:  ['hu', 'en', 'ro'],
+framesPerVideo:    10,       // 0 turns video frames off
+maxFramesPerReport: 30,
 lookbackHours:     24,
 telegramChatId:    '-100XXXXXXXXXX',
 telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },
 model:             'claude-sonnet-5-5',
+claudeUrl:         '',       // set it to use a Claude subscription, see above
 ```
 
 A YouTube channel can be given either as an `@handle` or as a channel ID
@@ -250,6 +284,18 @@ it rejected a wrong token and an invalid video ID. I also ran the prompts
 through Claude on one day of real data (30 investment items and 9 news-account
 posts), and the output came back as plain text with no Markdown.
 
+The video frames and the subscription route were tested end to end on n8n
+2.8.4. YouTube, Supadata and twitterapi.io were mocked with real content: a
+7-minute VirtualBacon video with its captions, a Chifoi post with three chart
+images, and a Chifoi post quoting a video. The frames service and Claude were
+real. Every node ran once. The video got 10 frames, the quoted video 8 (the
+video sits in the quoted post, so `hasVideo` also looks there), the image
+post went past the frames branch, and Claude received 20 images. The report
+was written on a subscription through `/claude` in 45 seconds and read
+levels off the frames that the speech never mentions. On its own, the
+service rejected a wrong token, a wrong video ID and a URL outside YouTube
+and X.
+
 ![A successful test run, with item counts on each node](docs/test-run.png)
 
 ## Files
@@ -257,7 +303,7 @@ posts), and the output came back as plain text with no Markdown.
 ```
 workflows/content-digest.json    the main workflow, prompts included
 workflows/error-alert.json       error alert workflow (Error Trigger → Telegram)
-whisper-service/server.py        local Whisper service for videos without captions
+whisper-service/server.py        local service: Whisper transcripts and video frames
 whisper-service/requirements.txt the service's Python dependencies
 docker-compose.yml               local n8n with one command
 docs/                            screenshots

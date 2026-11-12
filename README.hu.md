@@ -8,8 +8,9 @@ Ugyanarról a videóról vagy posztról nem küld kétszer.
 **A promptok befektetési információkra fókuszálnak.** A modell nem általános
 összefoglalót ír, hanem kigyűjti, mit állít a figyelt befektető: melyik
 eszközre milyen irányt, milyen árszinteket, milyen időtávra és mekkora
-meggyőződéssel, és hogy van-e benne pénze. Az X-posztokhoz csatolt
-grafikonokról leolvassa a szinteket. Saját befektetési tanácsot nem ad.
+meggyőződéssel, és hogy van-e benne pénze. A grafikonokról leolvassa a
+szinteket: az X-posztokhoz csatoltakról és a videókból kivágott képkockákról
+is. Saját befektetési tanácsot nem ad.
 
 A projekt egy Pythonban írt, Windows-ütemezővel futó rendszerem n8n-es
 változata, és ugyanazokat a jelentésszabályokat használja. Az eredeti
@@ -28,13 +29,13 @@ flowchart LR
     C --> YT[YouTube Data API<br/>legújabb videók]
     C --> X[twitterapi.io<br/>legutóbbi posztok]
     C --> M[Gmail<br/>hírlevelek a feladóktól]
-    YT --> D1[csak az új] --> S[felirat<br/>Supadata]
-    S -->|nincs felirat| W[Whisper<br/>saját gépen]
-    X --> D2[csak az új]
+    YT --> D1[csak az új] --> S[felirat<br/>Supadata] --> F1[képkockák<br/>saját gépen]
+    F1 -->|nincs felirat| W[Whisper<br/>saját gépen]
+    X --> D2[csak az új] --> F2[videó-képkockák<br/>saját gépen]
     M --> D3[csak az új]
-    S --> MG[Összes új tartalom]
+    F1 --> MG[Összes új tartalom]
     W --> MG
-    D2 --> MG
+    F2 --> MG
     D3 --> MG
     MG --> P[Prompt<br/>jelentéstípusonként] --> AI[Claude API] --> TG[Telegram<br/>4096 karakteres darabok]
 ```
@@ -71,9 +72,40 @@ fájlt és nem használ eszközt, a kimenet pedig sima szöveg. A Telegram node 
 nem alakítja át a Markdownt, ezért a szerkezetet emojival kezdődő sorok és
 üres sorok adják.
 
-Két dolog maradt ki az eredetiből. A videók képkockáit itt nem kapja meg a
-modell, csak az X-posztok képeit. És mivel nincs előző jelentése, nem tudja
-megmondani, mi változott a korábbiakhoz képest, csak ha maga a szerző mondja.
+Egy dolog maradt ki az eredetiből: mivel a modellnek nincs előző jelentése,
+nem tudja megmondani, mi változott a korábbiakhoz képest, csak ha maga a
+szerző mondja.
+
+### Grafikonok a videókban
+
+A figyelt emberek a charton mutatják az árszintet, közben annyit mondanak:
+„ennél a szintnél”. Ezért az átiratból gyakran hiányzik a szám. Az `investor`
+típusnál a helyi szolgáltatás (`whisper-service/`) minden videóból képkockákat
+is kivág, a YouTube-videókból és az X-posztokhoz csatolt videókból is:
+letölti a képsávot, ffmpeg-gel megkeresi a jelenetváltásokat, és legfeljebb
+`framesPerVideo` darabot tart meg, a videó teljes hosszán elosztva. Ha a
+videóban nincs érdemi vágás (végig ugyanaz a chart), egyenletesen mintavételez.
+A Claude a kockákat képként kapja, mindegyiket az elem számával és az
+időponttal felcímkézve.
+
+A kockák többsége beszélő fej, ezekről a prompt szerint nem ír a modell. A
+`maxFramesPerReport` egy jelentés összes kockáját korlátozza, és egyenlően
+osztja el a videók között; egy 1280×720-as kocka körülbelül 1200 bemeneti
+token. Ha a szolgáltatás nem fut, a videó kocka nélkül megy tovább, és a
+blokkjában `képkockák: NINCS` áll, így a modell nem ír olyan grafikonról, amit
+nem látott. A `framesPerVideo: 0` kikapcsolja a képkockákat.
+
+### Claude-előfizetés API-kulcs helyett
+
+Alapból a jelentést az Anthropic API írja. Ha van Claude-előfizetésed, és a
+helyi szolgáltatást futtató gépen telepítve és bejelentkezve van a Claude
+Code, töltsd ki a `claudeUrl` mezőt (általában ugyanaz, mint a `whisperUrl`).
+Ekkor a kérés a szolgáltatás `/claude` végpontjára megy: ez ugyanazzal a
+prompttal és képekkel `claude -p`-t futtat, és az API formátumában válaszol. A
+CLI eszközök, MCP-szerverek és beállítások nélkül, üres mappában fut, és az
+`ANTHROPIC_API_KEY` kikerül a környezetéből, így az előfizetést használja. A
+válaszban az is benne van, mennyibe került volna a hívás az API-n
+(`costUsd`).
 
 ### Felirat nélküli videók
 
@@ -125,7 +157,9 @@ hanem ugyanazon a gépen, a cím `http://localhost:8790`. Működik-e:
 A többi beállítás környezeti változó: `WHISPER_PORT`, `WHISPER_MODEL` (alapból
 `small`, 4 GB VRAM-on a `medium` már nem fér el), `WHISPER_MAX_MINUTES`
 (alapból 180), `WHISPER_HOST` (alapból `0.0.0.0`, hogy a konténer elérje).
-Egyszerre egy videót ír át, a többi kérés sorban vár.
+Egyszerre egy videót ír át, a többi kérés sorban vár. A képkockáknak saját
+sora van, így nem várnak az átírásra. Képkockához csak YouTube-ról és X-ről
+tölt le.
 
 ### 3. Import
 
@@ -140,8 +174,10 @@ node-okhoz.
 A két YouTube-os HTTP node (uploads playlist, latest videos) Query Auth
 típusú hitelesítést kap `key` névvel, az értéke a YouTube Data API v3 kulcs. A
 felirat-node (Supadata) Header Auth-ot használ `x-api-key` névvel. Ez nem
-kötelező: kulcs nélkül minden videó a Whisperhez megy. A Whisper-node szintén
-Header Auth-ot kap, `X-Whisper-Token` névvel és a szolgáltatás tokenjével. Az
+kötelező: kulcs nélkül minden videó a Whisperhez megy. A Whisper-node, a két
+képkocka-node (YouTube és X) és a `Claude: summarize (subscription)` node
+ugyanazt a Header Auth-ot kapja, `X-Whisper-Token` névvel és a szolgáltatás
+tokenjével. Az
 X-es node `X-API-Key` névvel a twitterapi.io kulcsát kapja, a Claude-node pedig
 `x-api-key` névvel az Anthropic API-kulcsot.
 
@@ -167,10 +203,13 @@ xNewsAccounts:     ['aixbt_agent'],                // newsfeed
 explainerChannels: ['@tizeslista_hu'],             // explainer
 whisperUrl:        'http://host.docker.internal:8790',
 whisperLanguages:  ['hu', 'en', 'ro'],
+framesPerVideo:    10,       // 0 = nincs képkocka
+maxFramesPerReport: 30,
 lookbackHours:     24,
 telegramChatId:    '-100XXXXXXXXXX',
 telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },
 model:             'claude-sonnet-5-5',
+claudeUrl:         '',       // kitöltve Claude-előfizetéssel fut, lásd fent
 ```
 
 A YouTube-csatornát `@handle` alakban és `UC...` kezdetű azonosítóval is meg
@@ -249,6 +288,18 @@ hibás tokent és a hibás videóazonosítót visszautasította. A promptokat eg
 nap valódi anyagán (30 befektetési elem és 9 hírfigyelő poszt) Claude-dal is
 lefuttattam: a kimenet sima szöveg lett, Markdown-jelölés nélkül.
 
+A videós képkockákat és az előfizetéses utat n8n 2.8.4-en, végig teszteltem.
+A YouTube, a Supadata és a twitterapi.io mock volt, de valódi tartalommal: egy
+7 perces VirtualBacon-videó a feliratával, egy Chifoi-poszt három charttal és
+egy Chifoi-poszt, ami egy videót idéz. A képkocka-szolgáltatás és a Claude
+valódi volt. Minden node egyszer futott. A videó 10 kockát kapott, az idézett
+videó 8-at (a videó az idézett posztban van, ezért a `hasVideo` ott is
+keres), a képes poszt elkerülte a képkocka-ágat, és a Claude 20 képet kapott.
+A jelentést az előfizetés írta a `/claude` végponton át, 45 másodperc alatt,
+és olyan szinteket is leolvasott a kockákról, amelyek a beszédben nem
+hangzanak el. Önmagában a szolgáltatás a hibás tokent, a hibás
+videóazonosítót és a YouTube-on és X-en kívüli URL-t visszautasította.
+
 ![Egy sikeres próbafutás, a node-okon az átment elemek számával](docs/test-run.png)
 
 ## Fájlok
@@ -256,7 +307,7 @@ lefuttattam: a kimenet sima szöveg lett, Markdown-jelölés nélkül.
 ```
 workflows/content-digest.json    a fő workflow, benne a promptokkal
 workflows/error-alert.json       hibajelző workflow (Error Trigger → Telegram)
-whisper-service/server.py        helyi Whisper-szolgáltatás a felirat nélküli videókhoz
+whisper-service/server.py        helyi szolgáltatás: Whisper-átirat és videó-képkockák
 whisper-service/requirements.txt a szolgáltatás Python-függőségei
 docker-compose.yml               helyi n8n egy paranccsal
 docs/                            képernyőképek
