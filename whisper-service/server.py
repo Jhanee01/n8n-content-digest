@@ -6,16 +6,21 @@ The n8n workflow calls it for two things:
   track with yt-dlp, transcribes it with OpenAI Whisper on this machine (GPU if
   available) and returns the text.
 * /frames: for every investor video (YouTube, or a video attached to an X
-  post). It downloads the picture track, cuts frames at scene changes with
-  ffmpeg and returns them as base64 JPEGs. The people this workflow follows
-  draw their price levels on charts while saying "at this level", so the
-  transcript alone often misses the actual numbers.
+  post). It downloads the picture track, cuts frames with ffmpeg and returns
+  them as base64 JPEGs. The people this workflow follows draw their price
+  levels on charts while saying "at this level", so the transcript alone often
+  misses the actual numbers. With the timestamped transcript in the request,
+  about two thirds of the frames come from the moments where the speaker
+  points at the screen (moments.py), the rest from scene changes. Without it,
+  every frame comes from scene changes.
 
     POST /transcribe   {"videoId": "dQw4w9WgXcQ", "languages": ["en", "hu"]}
-                       →  {"videoId", "text", "language", "durationSec", "model"}
-    POST /frames       {"videoId": "dQw4w9WgXcQ", "maxFrames": 10}
+                       →  {"videoId", "text", "language", "durationSec", "model", "segments"}
+    POST /frames       {"videoId": "dQw4w9WgXcQ", "maxFrames": 10,
+                        "segments": [{"start": 12.5, "text": "..."}, ...]}   (optional)
                        or {"url": "https://x.com/<user>/status/<id>", "maxFrames": 8}
-                       →  {"url", "durationSec", "frames": [{"second", "at", "mediaType", "data"}]}
+                       →  {"url", "durationSec",
+                           "frames": [{"second", "at", "picked", "context", "mediaType", "data"}]}
     POST /claude       a Messages API request body (model, system, one user message)
                        →  a Messages API-shaped reply: {"content": [{"type": "text", "text"}], "usage"}
     GET  /health       →  {"ok": true, "model": "small", "device": "cuda"}
@@ -60,6 +65,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from moments import content_share, context_at, pick_moments
+
 TOKEN = os.environ.get("WHISPER_TOKEN", "")
 HOST = os.environ.get("WHISPER_HOST", "0.0.0.0")
 PORT = int(os.environ.get("WHISPER_PORT", "8790"))
@@ -77,6 +84,11 @@ MAX_FRAMES = 12
 FRAME_HEIGHT = 720
 # Scene changes collected before picking; a safety cap for videos full of cuts.
 MAX_SCENE_FRAMES = 300
+# Frames picked at scene changes keep at least this far from the content ones.
+MIN_FRAME_GAP_SEC = 15.0
+# /frames gets the timestamped transcript too: a 3-hour video is a few hundred KB.
+MAX_FRAMES_BODY = 5_000_000
+MAX_SEGMENTS = 20_000
 
 # /claude: a report request carries base64 frames, so it can be a few MB.
 MAX_CLAUDE_BODY = 50_000_000
@@ -189,6 +201,12 @@ def transcribe(video_id: str, languages: list[str]) -> dict:
         "language": language,
         "durationSec": duration,
         "model": MODEL_NAME,
+        # Timestamped pieces: /frames uses them to pick frames by content.
+        "segments": [
+            {"start": round(float(s["start"]), 2), "text": str(s["text"]).strip()}
+            for s in result.get("segments", [])
+            if str(s.get("text", "")).strip()
+        ],
     }
 
 
@@ -221,7 +239,26 @@ def mmss(second: float) -> str:
     return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
 
 
-def extract_frames(url: str, max_frames: int) -> dict:
+def parse_segments(raw) -> list[tuple[float, str]]:
+    """Transcript pieces from the request: [{"start", "text"}, ...] or [[start, text], ...]."""
+    if not isinstance(raw, list):
+        return []
+    segments = []
+    for piece in raw[:MAX_SEGMENTS]:
+        try:
+            if isinstance(piece, dict):
+                start, text = float(piece.get("start")), str(piece.get("text") or "")
+            else:
+                start, text = float(piece[0]), str(piece[1] or "")
+        except (TypeError, ValueError, IndexError):
+            continue
+        if text.strip() and start >= 0:
+            segments.append((start, text))
+    return segments
+
+
+def extract_frames(url: str, max_frames: int,
+                   segments: list[tuple[float, str]] | None = None) -> dict:
     import yt_dlp
 
     is_x = urlparse(url).hostname.endswith(("x.com", "twitter.com"))
@@ -265,31 +302,64 @@ def extract_frames(url: str, max_frames: int) -> dict:
         out_dir = Path(tmpdir) / "frames"
         out_dir.mkdir()
         started = time.monotonic()
-        frames = (scene_frames(video, out_dir, max_frames, threshold)
-                  or uniform_frames(video, out_dir, max_frames, duration))
+        segments = segments or []
+        # About two thirds of the frames where the speaker points at the screen
+        # (moments.py), the rest at scene changes, away from the ones picked.
+        chosen: list[tuple[float, Path, str]] = []
+        for index, second in enumerate(pick_moments(segments, content_share(max_frames),
+                                                    duration or None)):
+            path = out_dir / f"moment_{index:03d}.jpg"
+            if grab(video, second, path):
+                chosen.append((second, path, "content"))
+        rest = max_frames - len(chosen)
+        if rest > 0:
+            pool = (scene_candidates(video, out_dir, threshold)
+                    or uniform_frames(video, out_dir, max_frames, duration))
+            pool = [(s, p) for s, p in pool
+                    if all(abs(s - c[0]) >= MIN_FRAME_GAP_SEC for c in chosen)]
+            chosen += [(pool[i][0], pool[i][1], "scene") for i in spread(len(pool), rest)]
+        chosen.sort(key=lambda c: c[0])
         elapsed = time.monotonic() - started
 
         result = [
             {
                 "second": int(second),
                 "at": mmss(second),
+                "picked": picked,
+                # What is said at that moment, so the model can tie the chart to it.
+                "context": context_at(segments, second)[:400],
                 "mediaType": "image/jpeg",
                 "data": base64.b64encode(path.read_bytes()).decode("ascii"),
             }
-            for second, path in frames
+            for second, path, picked in chosen
         ]
 
-    log(f"{url}: {len(result)} frames from {duration // 60} min of video in {elapsed:.0f} s")
+    by_content = sum(1 for f in result if f["picked"] == "content")
+    log(f"{url}: {len(result)} frames ({by_content} by content) from "
+        f"{duration // 60} min of video in {elapsed:.0f} s")
     return {"url": url, "durationSec": duration, "frames": result}
 
 
-def scene_frames(video: Path, out_dir: Path, max_frames: int,
-                 threshold: float) -> list[tuple[float, Path]]:
-    """Frames at scene changes, spread evenly over the whole video.
+def grab(video: Path, second: float, path: Path) -> bool:
+    """One frame at the given second."""
+    command = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", str(second),
+        "-i", str(video), "-vf", f"scale=-2:{FRAME_HEIGHT}",
+        "-frames:v", "1", "-q:v", "3", "-y", str(path),
+    ]
+    try:
+        subprocess.run(command, capture_output=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return path.exists()
+
+
+def scene_candidates(video: Path, out_dir: Path, threshold: float) -> list[tuple[float, Path]]:
+    """One frame at every scene change, with its second.
 
     The process is not cut short with a frame limit: cuts cluster at the start
     of a video, so every frame would come from the first minute. All scene
-    changes are collected first, then picked evenly in time.
+    changes are collected first, and the caller picks evenly in time.
     """
     raw_dir = out_dir / "raw"
     raw_dir.mkdir()
@@ -312,7 +382,7 @@ def scene_frames(video: Path, out_dir: Path, max_frames: int,
     # Without a usable timestamp for every frame the pairing would be off.
     if not candidates or len(seconds) < len(candidates):
         return []
-    return [(seconds[i], candidates[i]) for i in spread(len(candidates), max_frames)]
+    return [(seconds[i], candidates[i]) for i in range(len(candidates))]
 
 
 def spread(total: int, count: int) -> list[int]:
@@ -501,7 +571,7 @@ class Handler(BaseHTTPRequestHandler):
         if not hmac.compare_digest(given.encode(), TOKEN.encode()):
             self.send_json(401, {"error": "missing or wrong X-Whisper-Token header"})
             return
-        limit = MAX_CLAUDE_BODY if self.path == "/claude" else 10_000
+        limit = {"/claude": MAX_CLAUDE_BODY, "/frames": MAX_FRAMES_BODY}.get(self.path, 10_000)
         try:
             length = int(self.headers.get("Content-Length") or 0)
             if length > limit:
@@ -551,7 +621,8 @@ class Handler(BaseHTTPRequestHandler):
             + (" (waiting for the previous one)" if _frames_lock.locked() else ""))
         try:
             with _frames_lock:
-                self.send_json(200, extract_frames(url, max_frames))
+                self.send_json(200, extract_frames(url, max_frames,
+                                                   parse_segments(request.get("segments"))))
         except ServiceError as exc:
             log(f"{url}: {exc}")
             self.send_json(exc.status, {"url": url, "error": str(exc)})
