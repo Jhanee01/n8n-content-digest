@@ -515,7 +515,7 @@
       ],
       "parameters": {
         "content": "## ▶️ YouTube\nChannel → uploads playlist → latest videos → only the ones not seen before → captions (Supadata, optional) → frames at scene changes (local service, investor videos, optional) → no captions? → local Whisper service (optional)",
-        "width": 3140,
+        "width": 3100,
         "height": 300,
         "color": 3
       }
@@ -559,12 +559,12 @@
       "typeVersion": 1,
       "position": [
         2900,
-        200
+        40
       ],
       "parameters": {
         "content": "## 🤖 Summary\nOne Claude request per report type (investor / newsfeed / explainer), each with its own Hungarian prompt, through the Anthropic API or, if claudeUrl is set, on a Claude subscription via the local service; the replies go to Telegram in chunks of up to 4096 characters",
         "width": 1500,
-        "height": 300,
+        "height": 500,
         "color": 5
       }
     },

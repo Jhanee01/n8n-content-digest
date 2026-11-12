@@ -227,6 +227,23 @@ szinkronnal is lejöhet.
    „Content Digest – error alert” workflow-t.
 3. Kapcsold be (Active).
 
+### Frissítés v1.0.0-ról
+
+Az n8n magától nem húzza le az új verziót: a már importált workflow fut
+tovább, amíg újra nem importálod.
+
+1. Állítsd le és indítsd újra a helyi szolgáltatást (`python server.py`), hogy
+   a `/frames` és a `/claude` végpont is fusson.
+2. Másold ki a régi Settings node-ból a saját listáidat (csatornák, fiókok,
+   chat-azonosítók), importáld újra a `workflows/content-digest.json`-t, és
+   írd vissza őket.
+3. Rendeld hozzá az `X-Whisper-Token` hitelesítést a három új node-hoz:
+   `YouTube: frames (local)`, `X: frames (local)` és
+   `Claude: summarize (subscription)`.
+4. Ha Claude-előfizetéssel akarod íratni a jelentést, töltsd ki a
+   `claudeUrl`-t.
+5. Futtasd egyszer a Manual triggerről, és nézd meg az elemszámokat.
+
 ## Részletek
 
 ### Miért nem RSS-ből jönnek a videók?
@@ -299,6 +316,12 @@ A jelentést az előfizetés írta a `/claude` végponton át, 45 másodperc ala
 és olyan szinteket is leolvasott a kockákról, amelyek a beszédben nem
 hangzanak el. Önmagában a szolgáltatás a hibás tokent, a hibás
 videóazonosítót és a YouTube-on és X-en kívüli URL-t visszautasította.
+
+Az alábbi képernyőkép ez a futás, a szerkesztőből, a Manual triggerről
+indítva. A Telegram is mock volt (a hitelesítés alap-URL-je a mockra
+mutatott), így az üzenet a mockhoz ment, nem egy csatornába. A
+`Gmail: newsletters` és a `Claude: summarize` node-on látható figyelmeztetés
+csak azt jelzi, hogy a hitelesítésük nem volt hozzárendelve; egyik sem futott.
 
 ![Egy sikeres próbafutás, a node-okon az átment elemek számával](docs/test-run.png)
 

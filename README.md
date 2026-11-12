@@ -223,6 +223,21 @@ the Arabic dub.
    "Content Digest – error alert".
 3. Turn the workflow on (Active).
 
+### Updating from v1.0.0
+
+n8n doesn't pull a new version by itself: the imported workflow keeps running
+until you import the new one.
+
+1. Stop and restart the local service (`python server.py`), so the `/frames`
+   and `/claude` endpoints are up.
+2. Copy your own lists (channels, accounts, chat IDs) out of the old Settings
+   node, then import `workflows/content-digest.json` again and put them back.
+3. Attach the `X-Whisper-Token` credential to the three new nodes:
+   `YouTube: frames (local)`, `X: frames (local)` and
+   `Claude: summarize (subscription)`.
+4. To write the reports on a Claude subscription, set `claudeUrl`.
+5. Run it once from the Manual trigger and check the item counts.
+
 ## Details
 
 ### Why not RSS?
@@ -295,6 +310,12 @@ was written on a subscription through `/claude` in 45 seconds and read
 levels off the frames that the speech never mentions. On its own, the
 service rejected a wrong token, a wrong video ID and a URL outside YouTube
 and X.
+
+The screenshot below is that run, started from the Manual trigger in the
+editor. Telegram was mocked too (the credential's base URL pointed at the
+mock), so the message reached the mock instead of a chat. The warnings on
+`Gmail: newsletters` and `Claude: summarize` only mean that their credentials
+weren't attached; neither of them ran.
 
 ![A successful test run, with item counts on each node](docs/test-run.png)
 
