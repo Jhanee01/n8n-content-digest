@@ -40,7 +40,7 @@ flowchart LR
     F1 --> MG[All new content]
     F2 --> MG
     D3 --> MG
-    MG --> P[Prompt<br/>per report type] --> AI[Claude API] --> TG[Telegram<br/>4096-character chunks]
+    MG --> P[Prompt<br/>per report type] --> AI[Claude<br/>API or subscription] --> TG[Telegram<br/>4096-character chunks]
 ```
 
 You list the sources to follow in the `⚙️ Settings` node. Adding
@@ -110,16 +110,23 @@ service isn't running, the video goes on without frames, and its block says
 `képkockák: NINCS`, so the model doesn't write about charts it hasn't seen.
 Set `framesPerVideo` to 0 to turn frames off.
 
-### Claude subscription instead of an API key
+### Claude: API key or subscription
 
-By default the reports are written through the Anthropic API. If you have a
-Claude subscription and Claude Code installed and logged in on the machine
-that runs the local service, set `claudeUrl` (usually the same address as
-`whisperUrl`). The request then goes to the service's `/claude` endpoint,
-which runs `claude -p` with the same prompt and images and answers in the
-API's format. The CLI runs without tools, MCP servers or settings, in an empty
-folder, and `ANTHROPIC_API_KEY` is removed from its environment so the
-subscription is used. The reply also carries what the call would have cost on
+The reports can be written in two ways, and `claudeUrl` in the Settings node
+picks one:
+
+| | Anthropic API | Claude subscription |
+|---|---|---|
+| `claudeUrl` | empty | the local service's address, usually the same as `whisperUrl` |
+| What it needs | an Anthropic API key | Claude Code installed and logged in on the machine that runs the local service |
+| Billing | per call, by tokens | covered by the subscription |
+| Where n8n can run | anywhere | wherever it can reach the local service |
+
+Both get the same prompt and the same images. On a subscription the request
+goes to the service's `/claude` endpoint, which runs `claude -p` and answers
+in the API's format. The CLI runs without tools, MCP servers or settings, in
+an empty folder, and `ANTHROPIC_API_KEY` is removed from its environment so
+the subscription is used. Its reply also carries what the call would cost on
 the API (`costUsd`).
 
 ### Videos without captions
@@ -183,15 +190,16 @@ then `workflows/content-digest.json`.
 
 ### 4. Credentials
 
-You need seven credentials, each attached to the matching nodes.
+You need up to seven credentials, each attached to the matching nodes.
 
 The two YouTube HTTP nodes (uploads playlist, latest videos) use a Query Auth credential named `key`, with your YouTube
 Data API v3 key as the value. The captions node (Supadata) uses
 Header Auth named `x-api-key`. It's optional: without it, every video goes to
 Whisper. The Whisper node, the two frames nodes (YouTube and X) and the
 `Claude: summarize (subscription)` node share one Header Auth credential,
-named `X-Whisper-Token`, with the service's token. The X node uses `X-API-Key` with your twitterapi.io key,
-and the Claude node uses `x-api-key` with your Anthropic API key.
+named `X-Whisper-Token`, with the service's token. The X node uses `X-API-Key`
+with your twitterapi.io key. The `Claude: summarize` node uses `x-api-key` with
+your Anthropic API key; you only need it if `claudeUrl` is empty.
 
 The Gmail node connects to your mailbox with Gmail OAuth2. The two Telegram
 nodes (send, error alert) need your bot token from
@@ -221,7 +229,7 @@ lookbackHours:     24,
 telegramChatId:    '-100XXXXXXXXXX',
 telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },
 model:             'claude-sonnet-5-5',
-claudeUrl:         '',       // set it to use a Claude subscription, see above
+claudeUrl:         '',       // empty: Anthropic API; the service's address: subscription
 ```
 
 A YouTube channel can be given either as an `@handle` or as a channel ID
@@ -239,20 +247,13 @@ the Arabic dub.
    "Content Digest – error alert".
 3. Turn the workflow on (Active).
 
-### Updating from v1.0.0
+### Updating
 
 n8n doesn't pull a new version by itself: the imported workflow keeps running
-until you import the new one.
-
-1. Stop and restart the local service (`python server.py`), so the `/frames`
-   and `/claude` endpoints are up.
-2. Copy your own lists (channels, accounts, chat IDs) out of the old Settings
-   node, then import `workflows/content-digest.json` again and put them back.
-3. Attach the `X-Whisper-Token` credential to the three new nodes:
-   `YouTube: frames (local)`, `X: frames (local)` and
-   `Claude: summarize (subscription)`.
-4. To write the reports on a Claude subscription, set `claudeUrl`.
-5. Run it once from the Manual trigger and check the item counts.
+until you import the new one. Restart the local service, copy your own lists
+(channels, accounts, chat IDs) out of the Settings node, import
+`workflows/content-digest.json` again, put the lists back and attach the
+credentials. What changed in each version is in the release notes.
 
 ## Details
 
@@ -280,60 +281,58 @@ anything, the run stops before the Merge and no empty message is sent.
 
 Each run makes one Claude call per report type, so at most three. Their size is
 capped by `maxCharsPerItem` (40,000 characters per item by default, roughly the
-captions of a 45-minute video) and `maxImages`. Each system prompt is 5,000 to
-6,000 characters. Whisper runs on your own machine, so it has no API cost.
+captions of a 45-minute video), `maxImages` (X post images) and
+`maxFramesPerReport` (video frames, about 1,200 input tokens each). Each system
+prompt is 5,000 to 6,000 characters. On a subscription the calls are covered
+by it. Whisper and the frames run on your own machine, so they have no API
+cost.
 
 ## Testing
 
-I tested the first version on n8n 2.8.4 against a local mock server standing in for
-the YouTube, Supadata, twitterapi.io, Anthropic and Telegram APIs.
+The workflow is tested on n8n 2.8.4 against a local mock server that stands in
+for YouTube, Supadata, twitterapi.io and Telegram. The content is real: a
+7-minute VirtualBacon video with its timestamped captions, a Chifoi post with
+three chart images, and a Chifoi post quoting a video. The local service
+(Whisper, frames, Claude on a subscription) runs for real.
 
-The mock returned one recent and one old video per channel, and the old one
-was dropped because of `lookbackHours`. For a video without a transcript, the
-workflow worked from the description and the prompt said so. A channel that
-doesn't exist returned an error, and the other sources were still processed.
-With an empty newsletter list the email branch was skipped, and the Merge node
-continued with the other two.
+The end-to-end run on the current workflow checks that:
 
-The chart attached to an X post reached Claude as an `image` block. A long
-response was split into three Telegram messages, each under 4096 characters.
-A second run with the same data made no Claude call and sent no message.
+- every node runs once, and the image post skips the frames branch;
+- the video arrives with 199 timestamped caption pieces and gets 10 frames,
+  4 of them picked by content, each labelled with the sentence said then;
+- the quoted video gets 8 frames at scene changes (the video sits in the
+  quoted post, so `hasVideo` looks there too);
+- Claude on a subscription writes the report through `/claude` in about 45
+  seconds and reads levels off the frames that the speech never mentions;
+- the report reaches Telegram (here the mock), and a second run with the same
+  data finds nothing new and sends nothing.
 
-I tested the version with the Whisper branch and the report types the same
-way, on n8n 2.8.4 with mock APIs, but against the real Whisper service. The
-mock returned a real, short video without captions. Supadata found no captions
-for it, the video went to Whisper, and Claude received the machine transcript
-marked `felirat: whisper (en)`. The three report types became three separate
-Claude calls, each with its own prompt. The `newsfeed` report went to its own
-Telegram chat as configured, and all 12 posts of the account made it in, not
-just the first 5. A second run with the same data made no Claude call. With
-the Whisper service stopped, a new video without captions went on with its
-description, marked `felirat: NINCS`, and the run still succeeded.
+Earlier runs on the same test setup also covered:
 
-On a GPU, the service transcribed a short public video in 3 to 4 seconds, and
-it rejected a wrong token and an invalid video ID. I also ran the prompts
-through Claude on one day of real data (30 investment items and 9 news-account
-posts), and the output came back as plain text with no Markdown.
+- an old video is dropped because of `lookbackHours`, and a channel that
+  doesn't exist returns an error while the other sources are still processed;
+- with an empty newsletter list the email branch is skipped and the Merge node
+  continues with the others;
+- a video without captions goes to Whisper, and Claude gets the machine
+  transcript marked `felirat: whisper (en)`; with the service stopped it goes
+  on with its description, marked `felirat: NINCS`, and the run still succeeds;
+- the three report types become three Claude calls with their own prompts,
+  and `newsfeed` goes to its own chat with all 12 posts of the account;
+- the API route, against a mock of the Anthropic API: the X post chart arrives
+  as an `image` block, and a long reply is split into Telegram messages under
+  4096 characters.
 
-The video frames and the subscription route were tested end to end on n8n
-2.8.4. YouTube, Supadata and twitterapi.io were mocked with real content: a
-7-minute VirtualBacon video with its captions, a Chifoi post with three chart
-images, and a Chifoi post quoting a video. The frames service and Claude were
-real. Every node ran once. The video came with 199 timestamped caption
-pieces and got 10 frames, 4 of them picked by content, each with the
-sentence said at that moment. The quoted video got 8 frames at scene changes
-(the video sits in the quoted post, so `hasVideo` also looks there), and the
-image post went past the frames branch. The report was written on a
-subscription through `/claude` in 45 seconds and read levels off the frames
-that the speech never mentions. On its own, the service rejected a wrong
-token, a wrong video ID and a URL outside YouTube and X, and without a
-transcript it picked every frame at scene changes as before.
+On its own, the service rejects a wrong token, a wrong video ID and a URL
+outside YouTube and X, and on a GPU it transcribes a short public video in 3
+to 4 seconds. The prompts were also run on one day of real data (30
+investment items and 9 news-account posts), and the output came back as
+plain text with no Markdown.
 
-The screenshot below is that run, started from the Manual trigger in the
-editor. Telegram was mocked too (the credential's base URL pointed at the
-mock), so the message reached the mock instead of a chat. The warnings on
-`Gmail: newsletters` and `Claude: summarize` only mean that their credentials
-weren't attached; neither of them ran.
+The screenshot below is the current run, started from the Manual trigger.
+Telegram's credential pointed at the mock, so the message reached the mock
+instead of a chat. The warnings on `Gmail: newsletters` and
+`Claude: summarize` only mean that their credentials weren't attached; neither
+of them ran.
 
 ![A successful test run, with item counts on each node](docs/test-run.png)
 
