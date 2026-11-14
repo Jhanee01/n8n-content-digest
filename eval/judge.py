@@ -233,7 +233,8 @@ def render_item(data: dict, index: int, total: int) -> str:
         if meta.get("excerpt"):
             lines.append(f"felvezető: {' '.join(str(meta['excerpt']).split())}")
         if meta.get("extracted_by") == "index":
-            lines.append("kinyerés: SIKERTELEN — csak a cím és a felvezető van meg, a cikk szövegéről ne állíts semmit")
+            lines.append("kinyerés: SIKERTELEN — a cikk szövege nincs meg; csak a címet "
+                         "ismertesd, a felvezető tartalmát se, és a cikkről ne állíts semmit")
         elif meta.get("extracted_by"):
             lines.append(f"kinyerés: {meta['extracted_by']}")
     for image in meta.get("images") or []:
