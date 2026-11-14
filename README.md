@@ -1,24 +1,16 @@
-# Content Digest — an n8n workflow for YouTube, X and newsletter summaries
+# Content Digest: an n8n workflow for YouTube, X and newsletter summaries
 
-I follow a handful of YouTube channels, X accounts and newsletters, and I don't
-want to go through all of them. Every six hours this workflow collects what's
-new, has Claude write a report in Hungarian, and posts it to a Telegram
-channel. It never reports the same video or post twice.
+Every six hours this workflow collects what's new from the YouTube channels, X
+accounts and newsletters you follow, has Claude write a report in Hungarian,
+and posts it to Telegram. It never reports the same item twice.
 
-**The prompts focus on investment information.** Instead of a generic
-summary, the model pulls out what each followed investor claims: which asset,
-which direction, which price levels, over what time frame, how strongly they
-believe it, and whether they have money in it. It reads the levels off the
-charts, both the ones attached to X posts and frames cut from the videos. It
-never gives investment advice of its own.
+The prompts focus on investment information: which asset each followed
+investor talks about, which direction, which price levels, over what time
+frame, how strongly they believe it, and whether they have money in it. The
+levels are also read off the charts, from X post images and from frames cut
+out of the videos. The workflow never gives investment advice of its own.
 
-It's an n8n port of a system I originally wrote in Python, which runs on the
-Windows Task Scheduler and writes its reports with Claude Code, and it uses the
-same report rules. Here the pipeline is built from n8n nodes, so you can
-follow it step by step in the editor and run it on any n8n instance. Videos
-without captions are transcribed by a Whisper service running on your own
-machine, just like in the original.
-
+It's an n8n port of a Python system of mine and uses the same report rules.
 The prompts and the reports are in Hungarian.
 
 ![The workflow in the n8n editor](docs/workflow.png)
@@ -40,300 +32,177 @@ flowchart LR
     F1 --> MG[All new content]
     F2 --> MG
     D3 --> MG
-    MG --> P[Prompt<br/>per report type] --> AI[Claude API] --> TG[Telegram<br/>4096-character chunks]
+    MG --> P[Prompt<br/>per report type] --> AI[Claude<br/>API or subscription] --> TG[Telegram<br/>4096-character chunks]
 ```
 
-You list the sources to follow in the `⚙️ Settings` node. Adding
-a channel or an account is one new line in a list; no other node needs to
-change.
-
-Each source runs in its own branch, and each branch ends in a Remove Duplicates
-node. n8n remembers across executions which items it has already seen, so no
-separate database is needed. The `lookbackHours` setting matters on the first
-run: anything older than that is skipped even though it has never been seen.
-
-External API calls are set to `On Error: Continue`. If a channel doesn't exist
-or one of the APIs is down, the report for the other sources still goes out.
-
-If the main workflow fails, a separate workflow (`error-alert.json`) sends a message on Telegram.
+- **Sources** are listed in the `⚙️ Settings` node. A new channel or account is
+  one new line; no other node changes.
+- **Deduplication:** each branch ends in a Remove Duplicates node, so no
+  database is needed. On the first run, `lookbackHours` decides how far back
+  to look.
+- **Failures:** external calls use `On Error: Continue`, so one broken source
+  doesn't stop the report. If the whole workflow fails, `error-alert.json`
+  sends a Telegram message.
+- **Charts in videos:** the people followed point at a chart and say "at this
+  level", so the number is often missing from the transcript. A local service
+  cuts frames from each video, mostly at the moments when the speaker points
+  at the screen or says a number, and Claude gets them labelled with what is
+  said at that moment.
+- **Videos without captions** are transcribed by Whisper on your own machine.
+  The report then notes that names and numbers may be off.
 
 ### Report types
 
-Every source list belongs to a report type, and each type has its own prompt.
-Each type gets one Claude call and its own Telegram message.
+Each type has its own prompt, its own Claude call and its own Telegram message.
 
 | Type | Settings lists | What it's for |
 |---|---|---|
-| `investor` | `youtubeChannels`, `xAccounts`, `emailSenders` | Investment analysis per person: claims, price levels, time frame, conviction, read off the charts too |
-| `newsfeed` | `xNewsAccounts` | News accounts posting dozens of short items a day (e.g. @aixbt_agent): grouped by project, ranked, noise left out |
-| `explainer` | `explainerChannels` | Non-investment educational or self-development videos: a detailed walkthrough of the argument, key concepts and practical steps |
+| `investor` | `youtubeChannels`, `xAccounts`, `emailSenders` | Per-person investment analysis: claims, levels, time frame, conviction, charts included |
+| `newsfeed` | `xNewsAccounts` | Accounts posting dozens of short items a day (e.g. @aixbt_agent): grouped by project, noise left out |
+| `explainer` | `explainerChannels` | Non-investment educational videos: the argument, key concepts and practical steps |
 
-The prompts sit at the top of the `Build prompt` node, in Hungarian. They are
-adapted from the original project's skills for a single API call: the model
-reads no files and uses no tools, and the output is plain text. The Telegram
-node doesn't render Markdown here, so the structure comes from lines that
-start with an emoji and from blank lines.
+The prompts are at the top of the `Build prompt` node. The output is plain
+text, structured with emoji-led lines, because the Telegram node doesn't render
+Markdown. Unlike the original, the model doesn't see the previous report, so it
+can't say what changed since last time.
 
-One thing from the original is left out: since the model has no previous
-report, it can't tell what changed since last time unless the author says so.
+### Claude: API key or subscription
 
-### Charts in videos
+`claudeUrl` in the Settings node picks how the report is written:
 
-The people this workflow follows draw their price levels on a chart while
-saying "at this level", so the transcript alone often misses the numbers. For
-the `investor` report type the local service (`whisper-service/`) also cuts
-frames from every video, the YouTube ones and the videos attached to X posts,
-up to `framesPerVideo` each.
+| | Anthropic API | Claude subscription |
+|---|---|---|
+| `claudeUrl` | empty | the local service's address |
+| Needs | an Anthropic API key | Claude Code logged in on the machine running the local service |
+| Billing | per call | covered by the subscription |
 
-For YouTube videos the frames are picked by content. Supadata's captions and
-Whisper's transcript both come with timestamps, and the service
-(`whisper-service/moments.py`) scores every few seconds of speech: phrases
-that point at the screen ("look at", "this level", "on the chart", and their
-Romanian and Hungarian counterparts) and numbers that look like prices or
-percentages. About two thirds of the frames are cut at the strongest of these
-moments, two seconds after the sentence starts, because the chart usually
-comes up then. The rest come from scene changes found with ffmpeg, spread
-over the whole video and away from the ones already picked, so the other
-parts of the video aren't missed. Without a transcript (and for X videos,
-which have none) every frame comes from scene changes; if the video has no
-real cuts, it samples evenly.
+Both get the same prompt and images. On a subscription, the local service runs
+`claude -p` without tools or settings and answers in the API's format.
 
-On a 20-minute Chifoi video, frames at scene changes showed a chart on 3 of
-10; picked by content, 5 of the 7 content frames were charts, each a
-different one.
+### Safety
 
-Claude gets the frames as images, each labelled with its item, its timestamp
-and what is said at that moment, so it can tie the chart to the sentence. The
-prompt tells it to ignore the frames that only show a talking head. `maxFramesPerReport` caps the frames per report and is shared evenly
-between the videos; a 1280×720 frame costs about 1,200 input tokens. If the
-service isn't running, the video goes on without frames, and its block says
-`képkockák: NINCS`, so the model doesn't write about charts it hasn't seen.
-Set `framesPerVideo` to 0 to turn frames off.
+The reports are written from other people's posts, transcripts and
+newsletters, and any of them can carry text aimed at the model (prompt
+injection). Three things limit what it can do:
 
-### Claude subscription instead of an API key
-
-By default the reports are written through the Anthropic API. If you have a
-Claude subscription and Claude Code installed and logged in on the machine
-that runs the local service, set `claudeUrl` (usually the same address as
-`whisperUrl`). The request then goes to the service's `/claude` endpoint,
-which runs `claude -p` with the same prompt and images and answers in the
-API's format. The CLI runs without tools, MCP servers or settings, in an empty
-folder, and `ANTHROPIC_API_KEY` is removed from its environment so the
-subscription is used. The reply also carries what the call would have cost on
-the API (`costUsd`).
-
-### Videos without captions
-
-For YouTube videos the captions are the raw material. Supadata fetches the
-video's own captions first. If there are none (or there's no Supadata key), the
-video goes to the Whisper service, which downloads the audio track on your
-machine and transcribes it (`whisper-service/`). The report then notes that it
-is based on a machine transcript, because names and numbers may be off.
-
-If the service isn't running, or the video is longer than its limit, the model
-gets the video description instead, and the report says that only the
-description was available. Leave `whisperUrl` empty to skip this step.
+- **The model has no tools.** Through the API it gets text and images and
+  returns text. On a subscription the local service runs `claude -p` without
+  tools, MCP servers or settings, in an empty folder. It can't read or write
+  files or run commands.
+- **The prompt treats sources as data.** If an item contains instructions for
+  "the AI", the model leaves them out and adds one fixed line saying so,
+  without repeating their content.
+- **An output check runs before Telegram** (the `Output check` node; code, not
+  a model). A link must be one of the items' own URLs, or appear in the source
+  and point to a trusted site (x.com, YouTube, `trustedLinkHosts`, the items'
+  own sites). Nothing that looks like a key or token may appear. A report that
+  fails goes to `alertChatId` with the reasons, never to the channel.
 
 ## Setup
 
-### 1. Start n8n
+**1. Start n8n:** `docker compose up -d`, then open `http://localhost:5678`. n8n
+Cloud or a VPS works too, as long as it can reach the local service.
 
-```bash
-docker compose up -d
-```
-
-Then open `http://localhost:5678`. It works the same way on n8n Cloud or on
-your own VPS, but then the Whisper service has to run on a machine that n8n can
-reach.
-
-### 2. The Whisper service
-
-It needs Python 3.10+, ffmpeg and preferably an NVIDIA GPU. It runs without a
-GPU too, only slower.
-
-```bash
-cd whisper-service
-pip install -r requirements.txt
-```
-
-Before starting it, set a random token of at least 16 characters. n8n will
-send the same value:
+**2. Start the local service** (Whisper, frames, Claude subscription). It needs
+Python 3.10+ and ffmpeg; an NVIDIA GPU helps but isn't required.
 
 ```powershell
-$env:WHISPER_TOKEN = "<random value>"
+cd whisper-service
+pip install -r requirements.txt
+$env:WHISPER_TOKEN = "<random value, at least 16 characters>"
 python server.py
 ```
 
-The service listens on port 8790. From the Docker container, n8n reaches it at
-`http://host.docker.internal:8790`. If n8n runs on the same machine without
-Docker, use `http://localhost:8790`. To check that it's up, open
-`http://localhost:8790/health`.
+It listens on port 8790. From the Docker container n8n reaches it at
+`http://host.docker.internal:8790`; check it at `http://localhost:8790/health`.
+Optional environment variables: `WHISPER_MODEL` (`small` by default),
+`WHISPER_MAX_MINUTES` (180), `WHISPER_PORT`, `WHISPER_HOST`.
 
-The other settings are environment variables: `WHISPER_PORT`, `WHISPER_MODEL`
-(`small` by default; `medium` doesn't fit in 4 GB of VRAM),
-`WHISPER_MAX_MINUTES` (180 by default) and `WHISPER_HOST` (`0.0.0.0` by
-default, so the container can reach it). It transcribes one video at a time,
-and other requests wait in line. Frames have their own queue, so they don't
-wait for a transcription. For frames it only downloads from YouTube and X.
+**3. Import** `workflows/error-alert.json`, then `workflows/content-digest.json`
+(Workflows → Import from File).
 
-### 3. Import
+**4. Credentials.** Attach them to the matching nodes:
 
-Go to Workflows → Import from File. Import `workflows/error-alert.json` first,
-then `workflows/content-digest.json`.
+| Node | Type | Name | Value |
+|---|---|---|---|
+| YouTube (2 HTTP nodes) | Query Auth | `key` | YouTube Data API v3 key |
+| Captions (Supadata), optional | Header Auth | `x-api-key` | Supadata key |
+| Whisper, frames (2), Claude subscription | Header Auth | `X-Whisper-Token` | the service's token |
+| X | Header Auth | `X-API-Key` | twitterapi.io key |
+| Claude: summarize (API only) | Header Auth | `x-api-key` | Anthropic API key |
+| Gmail | Gmail OAuth2 | | your mailbox |
+| Telegram (send, error alert) | Telegram | | bot token from @BotFather |
+| Eval: webhook (only for evals) | Header Auth | `X-Eval-Token` | a random token |
 
-### 4. Credentials
+The workflow files contain no keys. If you don't use a source, leave its list
+empty and that branch won't run.
 
-You need seven credentials, each attached to the matching nodes.
-
-The two YouTube HTTP nodes (uploads playlist, latest videos) use a Query Auth credential named `key`, with your YouTube
-Data API v3 key as the value. The captions node (Supadata) uses
-Header Auth named `x-api-key`. It's optional: without it, every video goes to
-Whisper. The Whisper node, the two frames nodes (YouTube and X) and the
-`Claude: summarize (subscription)` node share one Header Auth credential,
-named `X-Whisper-Token`, with the service's token. The X node uses `X-API-Key` with your twitterapi.io key,
-and the Claude node uses `x-api-key` with your Anthropic API key.
-
-The Gmail node connects to your mailbox with Gmail OAuth2. The two Telegram
-nodes (send, error alert) need your bot token from
-@BotFather.
-
-n8n stores the keys encrypted. The workflow files in this repository contain no
-keys.
-
-If you don't use a source (say you have no twitterapi.io key), leave its list
-empty in the Settings node and that branch won't run at all.
-
-### 5. Settings
-
-The main fields of the `⚙️ Settings` node:
+**5. Settings.** The main fields of the `⚙️ Settings` node:
 
 ```js
-youtubeChannels:   ['UCjFCzjkgSShdRZIVJx3SSlQ'],   // investor
+youtubeChannels:   ['UCjFCzjkgSShdRZIVJx3SSlQ'],   // investor; @handle works too
 xAccounts:         ['ChifoiCristian'],             // investor
 emailSenders:      ['newsletter@example.com'],     // investor
 xNewsAccounts:     ['aixbt_agent'],                // newsfeed
 explainerChannels: ['@tizeslista_hu'],             // explainer
 whisperUrl:        'http://host.docker.internal:8790',
-whisperLanguages:  ['hu', 'en', 'ro'],
-framesPerVideo:    10,       // 0 turns video frames off
+whisperLanguages:  ['hu', 'en', 'ro'],  // audio track to fetch (avoids auto-dubs)
+framesPerVideo:    10,                  // 0 turns frames off
 maxFramesPerReport: 30,
 lookbackHours:     24,
 telegramChatId:    '-100XXXXXXXXXX',
-telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },
+telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },  // per-type chat, optional
 model:             'claude-sonnet-5-5',
-claudeUrl:         '',       // set it to use a Claude subscription, see above
+claudeUrl:         '',                  // empty: API; service address: subscription
+alertChatId:       '',                  // your private chat: held reports go here
+trustedLinkHosts:  ['theliquiditymap.com'],  // extra sites whose links may appear
 ```
 
-A YouTube channel can be given either as an `@handle` or as a channel ID
-starting with `UC`. `telegramChatIds` can send a report type to its own chat;
-if it's empty, the report goes to `telegramChatId`. `whisperLanguages` tells the
-service which audio track language to look for. YouTube adds auto-dubbed
-tracks to many videos, and without this an English video can come down with
-the Arabic dub.
+Without `alertChatId`, a held report only triggers a short notice in
+`telegramChatId`, and its text stays in the n8n execution log.
 
-### 6. Test run and activation
+**6. Test and activate.** Run it from the Manual trigger, set "Content Digest –
+error alert" as the Error workflow in the workflow settings, then turn it on.
 
-1. Run the workflow from the Manual trigger node. Each node
-   shows how many items passed through it.
-2. In the main workflow's Settings → Error workflow field, select
-   "Content Digest – error alert".
-3. Turn the workflow on (Active).
+**Updating:** n8n doesn't pull new versions by itself. Save your lists from the
+Settings node, re-import `workflows/content-digest.json`, put the lists back and
+reattach the credentials. Changes are in the release notes.
 
-### Updating from v1.0.0
+## Evals
 
-n8n doesn't pull a new version by itself: the imported workflow keeps running
-until you import the new one.
+The `Eval: webhook` node lets you measure report quality on fixed inputs. Post
+items in the same shape as the `All new content` node's output, and the report
+comes back with the output check's verdict. Nothing is collected and nothing
+goes to Telegram. The workflow has to be active.
 
-1. Stop and restart the local service (`python server.py`), so the `/frames`
-   and `/claude` endpoints are up.
-2. Copy your own lists (channels, accounts, chat IDs) out of the old Settings
-   node, then import `workflows/content-digest.json` again and put them back.
-3. Attach the `X-Whisper-Token` credential to the three new nodes:
-   `YouTube: frames (local)`, `X: frames (local)` and
-   `Claude: summarize (subscription)`.
-4. To write the reports on a Claude subscription, set `claudeUrl`.
-5. Run it once from the Manual trigger and check the item counts.
+```bash
+curl -X POST http://localhost:5678/webhook/content-digest-eval \
+  -H "X-Eval-Token: <token>" -H "Content-Type: application/json" \
+  -d '{"items": [{"uid": "x:1", "source": "x", "profile": "investor",
+       "author": "Investor X (@investorx)", "title": "BTC", "published": "2026-11-14T08:00:00Z",
+       "url": "https://x.com/investorx/status/1", "text": "BTC holding the 78k support."}]}'
+```
+
+The answer is one object per report: `text`, `findings`, `held`, `profile`.
+The request may also override `model`, `claudeUrl`, `maxFramesPerReport`,
+`maxCharsPerItem`, `maxImages` and `trustedLinkHosts` under `settings`. Images
+and video frames can be sent inline (`images` as `data:` URLs, `frames` as
+base64, like the local service returns them).
 
 ## Details
 
-### Why not RSS?
-
-YouTube's channel RSS feeds have returned 404 since October 2026, so the
-workflow uses the official Data API. It first looks up the channel's uploads
-playlist (`channels`), then fetches the latest items from it
-(`playlistItems`). That costs 2 quota units per channel per run, against a free
-daily quota of 10,000.
-
-### Deduplication
-
-Every item gets an ID (`youtube:<id>`, `x:<id>`, `email:<id>`), and the three
-"new ... only" nodes filter on it. To see everything again, run the
-Clear Deduplication History operation on those nodes.
-
-### Empty branches
-
-The workflow uses the `v1` execution order. If one branch has nothing new, the
-Merge node continues with the data from the others. If none of them has
-anything, the run stops before the Merge and no empty message is sent.
-
-### Cost
-
-Each run makes one Claude call per report type, so at most three. Their size is
-capped by `maxCharsPerItem` (40,000 characters per item by default, roughly the
-captions of a 45-minute video) and `maxImages`. Each system prompt is 5,000 to
-6,000 characters. Whisper runs on your own machine, so it has no API cost.
-
-## Testing
-
-I tested the first version on n8n 2.8.4 against a local mock server standing in for
-the YouTube, Supadata, twitterapi.io, Anthropic and Telegram APIs.
-
-The mock returned one recent and one old video per channel, and the old one
-was dropped because of `lookbackHours`. For a video without a transcript, the
-workflow worked from the description and the prompt said so. A channel that
-doesn't exist returned an error, and the other sources were still processed.
-With an empty newsletter list the email branch was skipped, and the Merge node
-continued with the other two.
-
-The chart attached to an X post reached Claude as an `image` block. A long
-response was split into three Telegram messages, each under 4096 characters.
-A second run with the same data made no Claude call and sent no message.
-
-I tested the version with the Whisper branch and the report types the same
-way, on n8n 2.8.4 with mock APIs, but against the real Whisper service. The
-mock returned a real, short video without captions. Supadata found no captions
-for it, the video went to Whisper, and Claude received the machine transcript
-marked `felirat: whisper (en)`. The three report types became three separate
-Claude calls, each with its own prompt. The `newsfeed` report went to its own
-Telegram chat as configured, and all 12 posts of the account made it in, not
-just the first 5. A second run with the same data made no Claude call. With
-the Whisper service stopped, a new video without captions went on with its
-description, marked `felirat: NINCS`, and the run still succeeded.
-
-On a GPU, the service transcribed a short public video in 3 to 4 seconds, and
-it rejected a wrong token and an invalid video ID. I also ran the prompts
-through Claude on one day of real data (30 investment items and 9 news-account
-posts), and the output came back as plain text with no Markdown.
-
-The video frames and the subscription route were tested end to end on n8n
-2.8.4. YouTube, Supadata and twitterapi.io were mocked with real content: a
-7-minute VirtualBacon video with its captions, a Chifoi post with three chart
-images, and a Chifoi post quoting a video. The frames service and Claude were
-real. Every node ran once. The video came with 199 timestamped caption
-pieces and got 10 frames, 4 of them picked by content, each with the
-sentence said at that moment. The quoted video got 8 frames at scene changes
-(the video sits in the quoted post, so `hasVideo` also looks there), and the
-image post went past the frames branch. The report was written on a
-subscription through `/claude` in 45 seconds and read levels off the frames
-that the speech never mentions. On its own, the service rejected a wrong
-token, a wrong video ID and a URL outside YouTube and X, and without a
-transcript it picked every frame at scene changes as before.
-
-The screenshot below is that run, started from the Manual trigger in the
-editor. Telegram was mocked too (the credential's base URL pointed at the
-mock), so the message reached the mock instead of a chat. The warnings on
-`Gmail: newsletters` and `Claude: summarize` only mean that their credentials
-weren't attached; neither of them ran.
+- **Why not RSS:** YouTube's channel RSS feeds have returned 404 since October
+  2026, so the workflow uses the Data API (2 quota units per channel per run,
+  out of 10,000 a day).
+- **Cost:** at most three Claude calls per run, one per report type. Their size
+  is capped by `maxCharsPerItem`, `maxImages` and `maxFramesPerReport` (a frame
+  is about 1,200 input tokens). Whisper and the frames run locally for free.
+- **Testing:** tested end to end on n8n 2.8.4 with real content (a YouTube
+  video, chart posts, a quoted video) against a mock of the external APIs,
+  with the local service and Claude on a subscription running for real. The
+  safety layer is tested the same way: a clean report reaches the channel, one
+  with a phishing link or a token is held and goes only to `alertChatId`, and
+  in eval mode nothing is sent.
 
 ![A successful test run, with item counts on each node](docs/test-run.png)
 
@@ -341,11 +210,9 @@ weren't attached; neither of them ran.
 
 ```
 workflows/content-digest.json    the main workflow, prompts included
-workflows/error-alert.json       error alert workflow (Error Trigger → Telegram)
-whisper-service/server.py        local service: Whisper transcripts and video frames
+workflows/error-alert.json       error alert (Error Trigger → Telegram)
+whisper-service/server.py        local service: Whisper, video frames, Claude subscription
 whisper-service/moments.py       picks frame moments from the timestamped transcript
-whisper-service/requirements.txt the service's Python dependencies
 docker-compose.yml               local n8n with one command
-docs/                            screenshots
 README.hu.md                     this README in Hungarian
 ```
