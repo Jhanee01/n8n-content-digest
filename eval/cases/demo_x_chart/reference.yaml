@@ -1,0 +1,50 @@
+id: demo_x_chart
+allapot: jovahagyva
+cim: "BTC daily: holding the 78k support for the third time"
+forras: X-poszt egy grafikonnal (kitalált bemutató eset)
+referencia_forrasa: kitalált bemutató eset a nyilvános repóhoz; a szerző, a poszt és a chart is kitalált
+
+allitasok:
+  - id: a1
+    eszkoz: BTC
+    irany: kivar
+    leiras: >
+      A Bitcoin harmadszor tartja a 78 ezres támaszt. Ha napi záróval alá megy,
+      a következő szint 72 ezer. Csak 82 ezer fölötti napi záró után vesz
+      hozzá.
+    szintek: [78000, 72000, 82000]
+    szint_forras: szoveg
+    invalidacio: "napi záró 78 ezer alatt"
+    idotav: "napi záró"
+    meggyozodes: "feltételes: csak 82 ezer fölötti napi záró után vesz hozzá"
+    pozicio: null
+    tezis_vagy_trade: trade
+    kritikus: true
+
+  - id: a2
+    eszkoz: BTC
+    irany: long
+    leiras: "Kis pozíciója van 74 ezerről, tőkeáttétel nélkül."
+    szintek: [74000]
+    szint_forras: szoveg
+    idotav: null
+    meggyozodes: "kis pozíció"
+    pozicio: "kis pozíció 74 ezerről, tőkeáttétel nélkül"
+    tezis_vagy_trade: trade
+    kritikus: true
+
+kotelezo_jeloles: []
+
+tilos_szamok: []
+
+tilos:
+  - "célár kitalálása: a poszt nem mond célárat (a 82 ezer feltétel, nem cél)"
+  - "a pozíciót nagynak vagy tőkeáttételesnek írni: kicsi, és kifejezetten tőkeáttétel nélküli"
+
+grafikonok:
+  - kep: "btc_daily.jpg"
+    mit_mutat: "BTC/USD napi, ellenállás 82 000, támasz 78 000, következő támasz 72 000"
+
+megjegyzes: >
+  Bemutató eset: a repó eval-eszközeinek kipróbálására. A számok a poszt
+  szövegében és a charton is szerepelnek.

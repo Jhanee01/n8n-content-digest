@@ -189,6 +189,10 @@ The request may also override `model`, `claudeUrl`, `maxFramesPerReport`,
 and video frames can be sent inline (`images` as `data:` URLs, `frames` as
 base64, like the local service returns them).
 
+The tools that use it are in [`eval/`](eval/README.md): a runner that scores
+the reports in code, an LLM judge (not a Claude model by default), and
+prompt-injection attacks, with two invented demo cases.
+
 ## Details
 
 - **Why not RSS:** YouTube's channel RSS feeds have returned 404 since October
@@ -214,5 +218,6 @@ workflows/error-alert.json       error alert (Error Trigger → Telegram)
 whisper-service/server.py        local service: Whisper, video frames, Claude subscription
 whisper-service/moments.py       picks frame moments from the timestamped transcript
 docker-compose.yml               local n8n with one command
+eval/                            evals: runner, scorer, LLM judge, red team, demo cases
 README.hu.md                     this README in Hungarian
 ```

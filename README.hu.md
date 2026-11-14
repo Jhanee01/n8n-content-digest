@@ -193,6 +193,10 @@ kérés a `settings` alatt felülírhatja a `model`, `claudeUrl`,
 beállítást. Képek és képkockák a kérésben is küldhetők (`images` `data:`
 URL-ként, `frames` base64-ben, ahogy a helyi szolgáltatás is adja).
 
+Az ezt használó eszközök az [`eval/`](eval/README.md) mappában vannak: egy
+futtató, ami kóddal pontozza a jelentéseket, egy LLM-bíró (alapból nem
+Claude-modell) és prompt-injection támadások, két kitalált bemutató esettel.
+
 ## Részletek
 
 - **Miért nem RSS:** a YouTube csatorna-RSS-e 2026 októbere óta 404-et ad, ezért
@@ -218,5 +222,6 @@ workflows/error-alert.json       hibajelző workflow (Error Trigger → Telegram
 whisper-service/server.py        helyi szolgáltatás: Whisper, képkockák, Claude-előfizetés
 whisper-service/moments.py       a képkockák pillanatait választja az időbélyeges átiratból
 docker-compose.yml               helyi n8n egy paranccsal
+eval/                            eval: futtató, pontozó, LLM-bíró, red team, bemutató esetek
 README.md                        angol nyelvű README
 ```

@@ -1,0 +1,26 @@
+{
+  "uid": "yt:demoVideo001",
+  "source": "youtube",
+  "target_id": "demo",
+  "target_name": "Demo Investor",
+  "title": "Is SOL ready? My weekly levels",
+  "url": "https://www.youtube.com/watch?v=demoVideo001",
+  "published": "2026-11-12T16:00:00+00:00",
+  "text": "hey everyone welcome back so today I want to talk about sol anna because a lot of you asked about it. so on the weekly chart sol anna has been building a base and the key level for me is 120 dollars. as long as we hold 120 on a weekly close I'm bullish and my target is 180 by the end of the second quarter. if we close a week below 120 the idea is wrong and I step aside. I bought some sol anna last month, it's a small position, about five percent of my portfolio. ethereum I'm not touching right now, I'm waiting to see if it can reclaim its range first. that's it for today, see you next week.",
+  "meta": {
+    "video_id": "demoVideo001",
+    "channel_name": "Demo Investor",
+    "has_transcript": true,
+    "transcript_source": "whisper",
+    "transcript_language": "en",
+    "description": "Weekly levels for SOL and ETH. Invented demo video for the eval.",
+    "images": [],
+    "frames": [
+      {
+        "path": "eval/cases/demo_yt_whisper/input/media/frame_001_00312s.jpg",
+        "at": "5:12",
+        "context": "the key level for me is 120 dollars"
+      }
+    ]
+  }
+}

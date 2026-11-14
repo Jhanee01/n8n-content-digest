@@ -1,0 +1,18 @@
+# Az eval-esetek listája. Ebben a repóban csak két kitalált bemutató eset van;
+# a saját eseteidet ide vedd fel (a cases/ alatt, a .gitignore nem tölti fel
+# őket, csak a demo_* mappákat).
+#
+# rendszer: melyik rendszeren futtatható (python | n8n). Az n8n-futtató
+# (run_n8n.py) és az n8n-es red team (redteam_n8n.py) csak az n8n-es eseteket
+# veszi, és csak ha a reference.yaml-ban `allapot: jovahagyva` áll.
+
+cases:
+  - id: demo_x_chart
+    rendszer: [n8n]
+    tipus: x_kep
+    teszteli: szintek és pozíció a poszt szövegéből és egy grafikonról
+
+  - id: demo_yt_whisper
+    rendszer: [n8n]
+    tipus: yt_whisper
+    teszteli: Whisper-jelölés, félrehallott név (sol anna → SOL), egy képkocka

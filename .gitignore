@@ -2,3 +2,6 @@
 *.local.json
 .n8n/
 __pycache__/
+eval/runs/
+eval/cases/*
+!eval/cases/demo_*/
