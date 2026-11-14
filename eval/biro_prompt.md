@@ -35,10 +35,17 @@ szám). Ha ugyanaz a hiba több helyen is megjelenik (a Lényegben és az
 - **K1a, kitalált szám:** árszint, dátum, százalék vagy összeg, ami se a
   nyersanyag szövegében, se a képeken, se a válaszkulcsban nincs. Kerekítés
   (78 592,75 → 78 593) és átváltás (58 ezer = 58 000) nem kitalálás. Az sem,
-  ami a képen tényleg ott van.
+  ami a képen tényleg ott van, akkor sem, ha a jelentés a grafikon tengelyéről
+  közelítőleg olvassa le („a csúcsok 87 ezer körül voltak”): nézd meg a képet,
+  mielőtt kifogásolod. Az sem kizáró hiba, ha a jelentés egy valódi chartot és
+  helyes számait rossz időbélyeghez vagy képkockához köti (pl. 11:32 a 12:16
+  helyett): a tartalom nem kitalált.
 - **K1b, megfordított vagy kitalált irány:** a jelentés más irányt tulajdonít
   a szerzőnek, mint amit mond (pl. „shortol”, ahol vesz; „bikás”, ahol
-  kivár), vagy irányt tulajdonít neki, ahol nem foglal állást.
+  kivár), vagy irányt tulajdonít neki, ahol nem foglal állást. Ha az irány
+  stimmel, csak a jelentés erősebbnek mondja („vár”, ahol a szerző „utolsó
+  esélyről” beszél; „biztos”, ahol „lehet”), az nem K1b, hanem a meggyőződés
+  hibája: az érintett állításnál `meggyozodes_jo: false`.
 - **K1c, kitalált pozíció:** a jelentés olyan pozíciót, vételt, eladást vagy
   tartást tulajdonít a szerzőnek, amit nem mond. Amit kimond, az nem hiba.
 - **K2, saját tanács vagy minősítés:** a jelentés maga ajánl („érdemes
