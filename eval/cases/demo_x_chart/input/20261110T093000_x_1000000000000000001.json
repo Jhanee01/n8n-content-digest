@@ -1,0 +1,21 @@
+{
+  "uid": "x:1000000000000000001",
+  "source": "x",
+  "target_id": "demo",
+  "target_name": "Demo Investor",
+  "title": "BTC daily: holding the 78k support for the third time",
+  "url": "https://x.com/demoinvestor/status/1000000000000000001",
+  "published": "2026-11-10T09:30:00+00:00",
+  "text": "BTC daily: holding the 78k support for the third time.\n\nIf we lose it on a daily close, 72k is next. I'm not adding until a daily close above 82k.\n\nSmall position from 74k, no leverage. Not financial advice.",
+  "meta": {
+    "likes": 120,
+    "retweets": 14,
+    "replies": 9,
+    "views": 15400,
+    "is_reply": false,
+    "images": [
+      "eval/cases/demo_x_chart/input/media/btc_daily.jpg"
+    ],
+    "frames": []
+  }
+}

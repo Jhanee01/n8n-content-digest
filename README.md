@@ -79,6 +79,25 @@ can't say what changed since last time.
 Both get the same prompt and images. On a subscription, the local service runs
 `claude -p` without tools or settings and answers in the API's format.
 
+### Safety
+
+The reports are written from other people's posts, transcripts and
+newsletters, and any of them can carry text aimed at the model (prompt
+injection). Three things limit what it can do:
+
+- **The model has no tools.** Through the API it gets text and images and
+  returns text. On a subscription the local service runs `claude -p` without
+  tools, MCP servers or settings, in an empty folder. It can't read or write
+  files or run commands.
+- **The prompt treats sources as data.** If an item contains instructions for
+  "the AI", the model leaves them out and adds one fixed line saying so,
+  without repeating their content.
+- **An output check runs before Telegram** (the `Output check` node; code, not
+  a model). A link must be one of the items' own URLs, or appear in the source
+  and point to a trusted site (x.com, YouTube, `trustedLinkHosts`, the items'
+  own sites). Nothing that looks like a key or token may appear. A report that
+  fails goes to `alertChatId` with the reasons, never to the channel.
+
 ## Setup
 
 **1. Start n8n:** `docker compose up -d`, then open `http://localhost:5678`. n8n
@@ -113,6 +132,7 @@ Optional environment variables: `WHISPER_MODEL` (`small` by default),
 | Claude: summarize (API only) | Header Auth | `x-api-key` | Anthropic API key |
 | Gmail | Gmail OAuth2 | | your mailbox |
 | Telegram (send, error alert) | Telegram | | bot token from @BotFather |
+| Eval: webhook (only for evals) | Header Auth | `X-Eval-Token` | a random token |
 
 The workflow files contain no keys. If you don't use a source, leave its list
 empty and that branch won't run.
@@ -134,7 +154,12 @@ telegramChatId:    '-100XXXXXXXXXX',
 telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },  // per-type chat, optional
 model:             'claude-sonnet-5-5',
 claudeUrl:         '',                  // empty: API; service address: subscription
+alertChatId:       '',                  // your private chat: held reports go here
+trustedLinkHosts:  ['theliquiditymap.com'],  // extra sites whose links may appear
 ```
+
+Without `alertChatId`, a held report only triggers a short notice in
+`telegramChatId`, and its text stays in the n8n execution log.
 
 **6. Test and activate.** Run it from the Manual trigger, set "Content Digest –
 error alert" as the Error workflow in the workflow settings, then turn it on.
@@ -142,6 +167,31 @@ error alert" as the Error workflow in the workflow settings, then turn it on.
 **Updating:** n8n doesn't pull new versions by itself. Save your lists from the
 Settings node, re-import `workflows/content-digest.json`, put the lists back and
 reattach the credentials. Changes are in the release notes.
+
+## Evals
+
+The `Eval: webhook` node lets you measure report quality on fixed inputs. Post
+items in the same shape as the `All new content` node's output, and the report
+comes back with the output check's verdict. Nothing is collected and nothing
+goes to Telegram. The workflow has to be active.
+
+```bash
+curl -X POST http://localhost:5678/webhook/content-digest-eval \
+  -H "X-Eval-Token: <token>" -H "Content-Type: application/json" \
+  -d '{"items": [{"uid": "x:1", "source": "x", "profile": "investor",
+       "author": "Investor X (@investorx)", "title": "BTC", "published": "2026-11-14T08:00:00Z",
+       "url": "https://x.com/investorx/status/1", "text": "BTC holding the 78k support."}]}'
+```
+
+The answer is one object per report: `text`, `findings`, `held`, `profile`.
+The request may also override `model`, `claudeUrl`, `maxFramesPerReport`,
+`maxCharsPerItem`, `maxImages` and `trustedLinkHosts` under `settings`. Images
+and video frames can be sent inline (`images` as `data:` URLs, `frames` as
+base64, like the local service returns them).
+
+The tools that use it are in [`eval/`](eval/README.md): a runner that scores
+the reports in code, an LLM judge (not a Claude model by default), and
+prompt-injection attacks, with two invented demo cases.
 
 ## Details
 
@@ -153,7 +203,10 @@ reattach the credentials. Changes are in the release notes.
   is about 1,200 input tokens). Whisper and the frames run locally for free.
 - **Testing:** tested end to end on n8n 2.8.4 with real content (a YouTube
   video, chart posts, a quoted video) against a mock of the external APIs,
-  with the local service and Claude on a subscription running for real.
+  with the local service and Claude on a subscription running for real. The
+  safety layer is tested the same way: a clean report reaches the channel, one
+  with a phishing link or a token is held and goes only to `alertChatId`, and
+  in eval mode nothing is sent.
 
 ![A successful test run, with item counts on each node](docs/test-run.png)
 
@@ -165,5 +218,6 @@ workflows/error-alert.json       error alert (Error Trigger → Telegram)
 whisper-service/server.py        local service: Whisper, video frames, Claude subscription
 whisper-service/moments.py       picks frame moments from the timestamped transcript
 docker-compose.yml               local n8n with one command
+eval/                            evals: runner, scorer, LLM judge, red team, demo cases
 README.hu.md                     this README in Hungarian
 ```

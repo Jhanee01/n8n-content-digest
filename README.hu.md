@@ -80,6 +80,26 @@ Mindkettő ugyanazt a promptot és képeket kapja. Előfizetésnél a helyi
 szolgáltatás eszközök és beállítások nélkül futtatja a `claude -p`-t, és az API
 formátumában válaszol.
 
+### Biztonság
+
+A jelentés mások posztjaiból, átirataiból és hírleveleiből készül, és bármelyik
+tartalmazhat a modellnek szóló szöveget (prompt injection). Három dolog
+korlátozza, mire mehet vele:
+
+- **A modellnek nincs eszköze.** Az API-n szöveget és képeket kap, és szöveget
+  ad vissza. Előfizetésnél a helyi szolgáltatás eszközök, MCP-szerverek és
+  beállítások nélkül, üres mappában futtatja a `claude -p`-t. Fájlt nem olvashat
+  és nem írhat, parancsot nem futtathat.
+- **A prompt a forrásokat adatnak veszi.** Ha egy elemben „az AI-nak” szóló
+  utasítás van, a modell kihagyja, és egy fix sorban jelzi, a tartalmát nem
+  ismétli meg.
+- **Kimeneti ellenőrzés Telegram előtt** (az `Output check` node; kód, nem
+  modell). Link csak egy elem saját URL-je lehet, vagy olyan, ami a forrásban
+  is szerepel, és megbízható oldalra mutat (x.com, YouTube, `trustedLinkHosts`,
+  az elemek saját oldalai). Kulcsra vagy tokenre hasonlító szöveg nem lehet
+  benne. Ami nem megy át, az az okokkal az `alertChatId`-ra megy, a csatornára
+  soha.
+
 ## Telepítés
 
 **1. Az n8n indítása:** `docker compose up -d`, utána `http://localhost:5678`.
@@ -115,6 +135,7 @@ A 8790-es porton figyel. Az n8n a Docker-konténerből a
 | Claude: summarize (csak API) | Header Auth | `x-api-key` | Anthropic API-kulcs |
 | Gmail | Gmail OAuth2 | | a postafiókod |
 | Telegram (send, error alert) | Telegram | | bot token a @BotFathertől |
+| Eval: webhook (csak evalhoz) | Header Auth | `X-Eval-Token` | egy véletlen token |
 
 A workflow-fájlokban nincs kulcs. Ha egy forrást nem használsz, hagyd üresen a
 listáját, és az az ág el sem indul.
@@ -136,7 +157,12 @@ telegramChatId:    '-100XXXXXXXXXX',
 telegramChatIds:   { investor: '', newsfeed: '', explainer: '' },  // típusonkénti csatorna, nem kötelező
 model:             'claude-sonnet-5-5',
 claudeUrl:         '',                  // üres: API; a szolgáltatás címe: előfizetés
+alertChatId:       '',                  // a privát chated: ide mennek a visszatartott jelentések
+trustedLinkHosts:  ['theliquiditymap.com'],  // további oldalak, amelyek linkje szerepelhet
 ```
+
+`alertChatId` nélkül a visszatartott jelentésről csak egy rövid értesítés megy
+a `telegramChatId`-ra, a szövege az n8n végrehajtási naplójában marad.
 
 **6. Próba és élesítés.** Futtasd a Manual triggerről, a workflow beállításaiban
 az Error workflow legyen a „Content Digest – error alert”, aztán kapcsold be.
@@ -145,6 +171,31 @@ az Error workflow legyen a „Content Digest – error alert”, aztán kapcsold
 a Settings node-ból, importáld újra a `workflows/content-digest.json`-t, írd
 vissza a listákat, és rendeld hozzá újra a hitelesítéseket. A változások a
 release-jegyzetekben vannak.
+
+## Eval
+
+Az `Eval: webhook` node-dal rögzített bemeneten mérheted a jelentések
+minőségét. Az `All new content` node kimenetével azonos alakú elemeket küldesz,
+és a jelentés a kimeneti ellenőrzés ítéletével együtt jön vissza. Gyűjtés nem
+fut, Telegramra semmi nem megy. A workflow-nak aktívnak kell lennie.
+
+```bash
+curl -X POST http://localhost:5678/webhook/content-digest-eval \
+  -H "X-Eval-Token: <token>" -H "Content-Type: application/json" \
+  -d '{"items": [{"uid": "x:1", "source": "x", "profile": "investor",
+       "author": "Investor X (@investorx)", "title": "BTC", "published": "2026-11-14T08:00:00Z",
+       "url": "https://x.com/investorx/status/1", "text": "BTC holding the 78k support."}]}'
+```
+
+A válasz jelentésenként egy objektum: `text`, `findings`, `held`, `profile`. A
+kérés a `settings` alatt felülírhatja a `model`, `claudeUrl`,
+`maxFramesPerReport`, `maxCharsPerItem`, `maxImages` és `trustedLinkHosts`
+beállítást. Képek és képkockák a kérésben is küldhetők (`images` `data:`
+URL-ként, `frames` base64-ben, ahogy a helyi szolgáltatás is adja).
+
+Az ezt használó eszközök az [`eval/`](eval/README.md) mappában vannak: egy
+futtató, ami kóddal pontozza a jelentéseket, egy LLM-bíró (alapból nem
+Claude-modell) és prompt-injection támadások, két kitalált bemutató esettel.
 
 ## Részletek
 
@@ -157,7 +208,9 @@ release-jegyzetekben vannak.
   helyben, ingyen futnak.
 - **Tesztelés:** n8n 2.8.4-en, valódi tartalommal (YouTube-videó, grafikonos
   posztok, idézett videó), a külső API-k mockjával, élesben futó helyi
-  szolgáltatással és előfizetéses Claude-dal.
+  szolgáltatással és előfizetéses Claude-dal. A biztonsági réteg ugyanígy:
+  a tiszta jelentés a csatornára megy, az adathalász linkes vagy tokenes
+  visszatartva csak az `alertChatId`-ra, eval módban pedig semmi nem megy ki.
 
 ![Egy sikeres próbafutás, a node-okon az átment elemek számával](docs/test-run.png)
 
@@ -169,5 +222,6 @@ workflows/error-alert.json       hibajelző workflow (Error Trigger → Telegram
 whisper-service/server.py        helyi szolgáltatás: Whisper, képkockák, Claude-előfizetés
 whisper-service/moments.py       a képkockák pillanatait választja az időbélyeges átiratból
 docker-compose.yml               helyi n8n egy paranccsal
+eval/                            eval: futtató, pontozó, LLM-bíró, red team, bemutató esetek
 README.md                        angol nyelvű README
 ```

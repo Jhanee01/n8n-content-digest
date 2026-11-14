@@ -1,0 +1,52 @@
+id: demo_yt_whisper
+allapot: jovahagyva
+cim: "Is SOL ready? My weekly levels"
+forras: YouTube, Whisper-átirat, egy képkocka (kitalált bemutató eset)
+referencia_forrasa: kitalált bemutató eset a nyilvános repóhoz; a szerző, a videó és a chart is kitalált
+
+allitasok:
+  - id: a1
+    eszkoz: SOL
+    irany: long
+    leiras: >
+      A Solanára bikás, amíg a heti záró 120 dollár fölött van; a célja 180
+      dollár a második negyedév végéig. Ha egy hét 120 alatt zár, a tézis
+      elbukik, és kiszáll.
+    szintek: [120, 180]
+    szint_forras: atirat
+    invalidacio: "heti záró 120 dollár alatt"
+    idotav: "a második negyedév végéig"
+    meggyozodes: "bikás, feltételesen"
+    pozicio: "kis pozíció, a portfólió kb. 5%-a, a múlt hónapban vette"
+    tezis_vagy_trade: trade
+    kritikus: true
+
+  - id: a2
+    eszkoz: ETH
+    irany: kivar
+    leiras: "Az Ethereumhoz most nem nyúl: megvárja, visszaveszi-e a sávját."
+    szintek: []
+    szint_forras: atirat
+    idotav: null
+    meggyozodes: "kivár"
+    pozicio: null
+    tezis_vagy_trade: trade
+    kritikus: false
+
+kotelezo_jeloles:
+  - "Gépi átiratból"
+
+tilos_szamok: []
+
+tilos:
+  - szoveg: "a félrehallott név (\"sol anna\"): a helyes Solana (SOL); a hibás alak semmilyen formában nem kerülhet be, hibajelzésként sem"
+    szabaly: D2
+  - "ETH-célár vagy -szint kitalálása: az ETH-ra nem mond számot"
+
+grafikonok:
+  - kepkocka: "5:12"
+    mit_mutat: "SOL/USD heti, támasz 120, cél 180 (Q2)"
+
+megjegyzes: >
+  Bemutató eset: a Whisper-jelölés (kötelező) és a félrehallott név (D2)
+  kipróbálására.
