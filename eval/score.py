@@ -54,7 +54,7 @@ META_NYELV = (
 )
 
 MAX_KEP = 5
-MAX_VIDEO_SZO = 200
+MAX_VIDEO_SZO = 300   # 2026-11-15-ig 200; a felhasználó döntése: 300
 MAX_MONDAT_BEKEZDES = 4
 SZINT_TURES = 0.01  # B pont: ±1%
 
@@ -310,7 +310,7 @@ def check_summary(text: str, lines: list[str], system: str) -> Check:
 
 
 def check_video_length(lines: list[str], system: str) -> Check:
-    """D5: a videó-összefoglaló (grafikonlista, képek, link nélkül) legfeljebb 200 szó."""
+    """D5: a videó-összefoglaló (grafikonlista, képek, link nélkül) legfeljebb MAX_VIDEO_SZO szó."""
     blocks = video_blocks(lines, system)
     if not blocks:
         return Check("D5", f"videónként legfeljebb {MAX_VIDEO_SZO} szó", None)

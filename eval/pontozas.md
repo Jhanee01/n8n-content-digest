@@ -151,7 +151,8 @@ A B pont ezek átlaga a készletben.
 2. nincs Markdown-táblázat
 3. legfeljebb 5 kép, mindegyik önálló sorban, és a fájl létezik (csak python)
 4. van Összkép szakasz (python: `## Összkép`; n8n: `🧭 Összkép`)
-5. videónként az összefoglaló (a grafikonlista nélkül) legfeljebb 200 szó
+5. videónként az összefoglaló (a grafikonlista nélkül) legfeljebb 300 szó
+   (2026-11-15-ig 200; egy jelentés sem tartotta, ezért a felhasználó 300-ra emelte)
 6. nincs meta-nyelv a szó szerinti listából („az elérhető adatok alapján”,
    „a képkockákból kiderül”, „az átirat elemzése szerint”)
 7. nincs Markdown-jelölés (csak n8n)
