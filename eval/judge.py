@@ -82,6 +82,8 @@ JUDGE_FLAGS = [
     "--no-session-persistence",
 ]
 API_PREFIX = "api:"
+# „idézet" (egyenes záró jellel): a nyitó „ és az első " vagy ” közti rész.
+HU_QUOTE = re.compile(r"„([^\"”\n]{0,300})\"")
 DEFAULT_JUDGE = "api:nvidia/nemotron-3.5-super-vl:free"
 API_BASE_DEFAULT = "https://openrouter.ai/api/v1"
 API_RETRIES = 6
@@ -311,6 +313,15 @@ def ask_judge(case_dir: Path, report_text: str, model: str) -> tuple[dict, dict,
         try:
             return json.loads(text[start:end + 1]), meta, sandbox
         except json.JSONDecodeError as exc:
+            # Gyakori hiba: magyar idézőjel „-vel nyitva, egyenes "-lel zárva;
+            # az egyenes " a JSON-szöveget is lezárja. A párt ”-re javítjuk.
+            fixed = HU_QUOTE.sub(lambda m: f"„{m.group(1)}”", text[start:end + 1])
+            try:
+                verdict = json.loads(fixed)
+                meta["json_javitva"] = "magyar idézőjel"
+                return verdict, meta, sandbox
+            except json.JSONDecodeError:
+                pass
             at = start + exc.pos
             raise RuntimeError(f"hibás JSON ({exc.msg}) itt: …{text[max(0, at - 80):at + 40]!r}…") from None
 
@@ -760,6 +771,8 @@ def main() -> int:
     ap.add_argument("--repeat", type=int, default=1, help="ugyanazt hányszor bírálja (a bíró zaja)")
     ap.add_argument("--parallel", type=int, default=2)
     ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--prompt", default=None,
+                    help="más promptfájl (pl. egy régi változat, hogy egy félbemaradt bírálat ugyanazzal fejeződjön be)")
     ap.add_argument("--hianyzo", action="store_true",
                     help="csak ami még nincs meg hibátlanul (pótlás egy megszakadt futás után)")
     ap.add_argument("--system", choices=("python", "n8n"), default=None,
@@ -767,6 +780,9 @@ def main() -> int:
     args = ap.parse_args()
 
     target = Path(args.target)
+    if args.prompt:
+        global BIRO_PROMPT
+        BIRO_PROMPT = Path(args.prompt).resolve()
     bid = judge_id(args.model)
     system = args.system
     if system is None:

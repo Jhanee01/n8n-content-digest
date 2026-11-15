@@ -193,6 +193,21 @@ The tools that use it are in [`eval/`](eval/README.md): a runner that scores
 the reports in code, an LLM judge (not a Claude model by default), and
 prompt-injection attacks, with two invented demo cases.
 
+**Results so far** on the author's own 10 cases. The report-quality rows were
+measured on the author's Python version of the same pipeline (same writing
+rules, same judge); the injection row on this workflow. Details in
+[`eval/RESULTS.md`](eval/RESULTS.md).
+
+| | |
+|---|---|
+| Judge | `nvidia/nemotron-3.5-super-vl:free` (OpenRouter); Claude Opus as a reference |
+| Judge test: planted errors caught | Nemotron 12/12, Opus 11/11 |
+| Same 40 reports, both judges: pass/fail agreed | 31/40 (78%) |
+| Real errors caught, checked by a person | Opus 27/27, Nemotron 19/27 |
+| Passed, Opus / Nemotron | 14/40 and 19/40 |
+| After three new writing rules (Nemotron) | passed 48% → 85%, real errors 30% → 15% |
+| Prompt-injection attacks held | 16/16 |
+
 ## Details
 
 - **Why not RSS:** YouTube's channel RSS feeds have returned 404 since October

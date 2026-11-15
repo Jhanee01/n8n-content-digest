@@ -197,6 +197,21 @@ Az ezt használó eszközök az [`eval/`](eval/README.md) mappában vannak: egy
 futtató, ami kóddal pontozza a jelentéseket, egy LLM-bíró (alapból nem
 Claude-modell) és prompt-injection támadások, két kitalált bemutató esettel.
 
+**Eddigi eredmények** a szerző saját 10 esetén. A jelentésminőség sorait a
+szerző ugyanennek a folyamatnak a Python-változatán mérte (ugyanazok az írási
+szabályok, ugyanaz a bíró), a prompt injectiont ezen a workflow-n. Részletek:
+[`eval/RESULTS.md`](eval/RESULTS.md).
+
+| | |
+|---|---|
+| Bíró | `nvidia/nemotron-3.5-super-vl:free` (OpenRouter), referenciának Claude Opus |
+| Bíróteszt: elkapott beültetett hiba | Nemotron 12/12, Opus 11/11 |
+| Ugyanaz a 40 jelentés, két bíró: átment/bukott egyezik | 31/40 (78%) |
+| Elkapott valódi hiba, ember által ellenőrizve | Opus 27/27, Nemotron 19/27 |
+| Átment, Opus / Nemotron | 14/40, illetve 19/40 |
+| Három új írási szabály után (Nemotron) | átment 48% → 85%, valódi hiba 30% → 15% |
+| Kivédett prompt-injection támadás | 16/16 |
+
 ## Részletek
 
 - **Miért nem RSS:** a YouTube csatorna-RSS-e 2026 októbere óta 404-et ad, ezért
