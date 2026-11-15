@@ -17,29 +17,87 @@ version of the same report.
 | `nvidia/nemotron-3.5-super-vl:free` | 12/12 | 5 |
 | Claude Opus | 11/11 (one error was already in the clean report) | 4 |
 
-**Agreement on 31 baseline reports** (10 cases, written by Claude Sonnet,
-judged by both):
+**Both judges on the same 40 reports** (10 cases × 4 runs, written by
+Claude Sonnet, same judge prompt):
 
-- pass/fail agreed on **27 of 31** (87%);
-- "claim covered" agreed on 67 of 80 claims, conviction on 58 of 65;
-- average score difference: A (claims) 6.5 of 40, B (levels) 3.6 of 25,
-  C 0.8 of 10, E 1.3 of 10.
+| | Claude Opus | Nemotron |
+|---|---|---|
+| Passed | 14 | 19 |
+| Failed only on a rule added after the reports were written (D2, D6) | 12 | 9 |
+| Failed on a real error | 14 | 12 |
+| A, claims covered (of 40) | 35.8 | 33.1 |
+| B, price levels and timeframes (of 25) | 21.7 | 18.3 |
+| C, conviction (of 10) | 9.2 | 9.4 |
+| D, form, scored in code (of 15) | 13.7 | 13.7 |
+| E, style (of 10) | 8.1 | 7.9 |
 
-| Failing code | Opus | Nemotron | Both |
+Agreement: pass/fail on **31 of 40** (78%), "claim covered" on 109 of 136
+claims, conviction on 84 of 100. Average score difference: A 7.4, B 3.9,
+C 0.9, E 1.5.
+
+| Failing code (number of reports) | Opus | Nemotron | Both |
 |---|---|---|---|
-| K1a invented number | 1 | 1 | 0 |
-| K1b reversed direction | 1 | 0 | 0 |
+| K1a invented number | 1 | 2 | 0 |
+| K1b reversed direction | 2 | 1 | 0 |
+| K1c invented position | 2 | 0 | 0 |
 | K4 forbidden content | 10 | 10 | 8 |
-| K4 (D2) misheard name or number repeated | 7 | 5 | 5 |
-| K4 (D6) content of a failed extraction | 3 | 3 | 3 |
+| K4 (D2) misheard name or number repeated | 9 | 6 | 6 |
+| K4 (D6) content of a failed extraction | 4 | 4 | 4 |
 
-The two judges agree on the clear errors and split on the borderline ones.
-Nemotron was a little stricter on the planted set and a little more lenient
-on the misheard-name rule. Where they disagree, a person decides; that is the
-calibration step in `pontozas.md`.
+**Against a person's decisions.** The author went through 32 disputed
+failing verdicts from this run and decided each one: 28 were right (27
+distinct errors, since the two judges coded one sentence differently) and 4
+were wrong.
+
+| | Claude Opus | Nemotron |
+|---|---|---|
+| Real errors caught (of 27) | 27 (100%) | 19 (70%) |
+| Real errors missed | 0 | 8 |
+| Wrong failing verdicts | 2 | 3 |
+| Its failing verdicts that were right | 27 of 29 (93%) | 19 of 22 (86%) |
+
+Nemotron missed both invented positions, the reversed direction, 3 of 9
+repeated misheard values and 2 of 10 forbidden-content errors. One caveat:
+the list started from Opus's verdicts, so an error neither judge flagged, or
+only Nemotron flagged in a report it judged later, is not in it; that
+favours Opus.
+
+The two judges agree on the clear errors (forbidden content, failed
+extraction) and split on the borderline ones: one-off invented numbers,
+directions and positions. Nemotron was a little stricter on the planted set
+and more lenient on positions and on the misheard-name rule. Where they
+disagree, a person decides; that is the calibration step in `pontozas.md`.
+Calibrating 32 disputed verdicts this way made the judge prompt clearer in
+two places (an approximate chart reading is not an invented number; a
+claim stated too strongly is a conviction error, not a reversed direction).
+
+## Did the new writing rules help? (November 2026)
+
+Three rules were added to the report skill after the baseline: a misheard
+name or number never appears, not even as a correction (D2); a missing
+transcript is flagged first (D3); a failed extraction gets only its title
+(D6). The same 10 cases were written again twice and judged by Nemotron.
+
+| | Before (40 reports) | After (20 reports) |
+|---|---|---|
+| Passed | 19 (48%) | 17 (85%) |
+| Failed on a real error | 12 (30%) | 3 (15%) |
+| D2: misheard value repeated | 6 | 0 |
+| D6: content of a failed extraction | 4 | 0 |
+| A, claims covered (of 40) | 33.1 | 38.8 |
+| B, levels and timeframes (of 25) | 18.3 | 21.0 |
+
+Two caveats. The "after" reports were judged with the clarified judge prompt,
+the "before" ones with the earlier version, so part of the difference may be
+the judge. And two of the three remaining failures were the failed-extraction
+label in the wrong place, which a follow-up fix solved (2 of 2 passed in the
+code checks afterwards).
 
 Nemotron is free on OpenRouter but slow (about 100 seconds per report), and
-without credits the free tier allows only a few dozen calls a day.
+without credits the free tier allows only a few dozen calls a day. About one
+answer in twenty came back as invalid JSON, mostly a Hungarian opening quote
+(„) closed with a straight one; the judge now repairs that case. One in forty
+ran out of its 32,000 output tokens while thinking and was retried.
 
 ## Prompt injection
 
