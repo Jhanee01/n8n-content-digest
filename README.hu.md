@@ -241,3 +241,7 @@ docker-compose.yml               helyi n8n egy paranccsal
 eval/                            eval: futtató, pontozó, LLM-bíró, red team, bemutató esetek
 README.md                        angol nyelvű README
 ```
+
+## Licenc
+
+MIT, lásd: [LICENSE](LICENSE). A repó saját workflow-jára, promptjaira és kódjára vonatkozik; az n8n és a felhasznált könyvtárak a saját licencük alatt maradnak.
