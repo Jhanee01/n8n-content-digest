@@ -210,6 +210,7 @@ szabályok, ugyanaz a bíró), a prompt injectiont ezen a workflow-n. Részletek
 | Elkapott valódi hiba, ember által ellenőrizve | Opus 27/27, Nemotron 19/27 |
 | Átment, Opus / Nemotron | 14/40, illetve 19/40 |
 | Három új írási szabály után (Nemotron) | átment 48% → 85%, valódi hiba 30% → 15% |
+| Jelentésíró modell, átment (Nemotron, 20-20 jelentés) | Sonnet 14/20, Haiku 10/20 (a Haiku tizedannyiba kerül, kétszer lassabb) |
 | Kivédett prompt-injection támadás | 16/16 |
 
 ## Részletek
