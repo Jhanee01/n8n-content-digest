@@ -206,7 +206,7 @@ rules, same judge); the injection row on this workflow. Details in
 | Real errors caught, checked by a person | Opus 27/27, Nemotron 19/27 |
 | Passed, Opus / Nemotron | 14/40 and 19/40 |
 | After three new writing rules (Nemotron) | passed 48% → 85%, real errors 30% → 15% |
-| Report writer, passed (Nemotron, 20 reports each) | Sonnet 14/20, Haiku 10/20 (Haiku: a tenth of the cost, twice as slow) |
+| Report writer, passed (Nemotron, 20 reports each) | Sonnet 14/20, Opus 12/20 (most complete, twice the cost), Haiku 10/20 (a tenth of the cost, twice as slow) |
 | Prompt-injection attacks held | 16/16 |
 
 ## Details
