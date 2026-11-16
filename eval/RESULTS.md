@@ -102,40 +102,46 @@ ran out of its 32,000 output tokens while thinking and was retried.
 ## Which model should write the reports? (November 2026)
 
 The same 10 cases, written twice by each model with the current writing rules
-(D2, D3, D6 and the 300-word video limit), on a Claude subscription. All 40
+(D2, D3, D6 and the 300-word video limit), on a Claude subscription. All 60
 reports were judged once by Nemotron with the same judge prompt.
 
-| | Claude Haiku | Claude Sonnet |
-|---|---|---|
-| Passed (judge) | 10/20 | 14/20 |
-| Failed only on a newer rule (D2) | 2 | 0 |
-| Failed on a real error | 8 | 6 |
-| Passed the code checks | 19/20 | 19/20 |
-| A, claims covered (of 40) | 36.5 | 39.0 |
-| B, price levels and timeframes (of 25) | 19.5 | 20.9 |
-| C, conviction (of 10) | 9.5 | 9.6 |
-| D, form, scored in code (of 15) | 14.2 | 14.1 |
-| E, style (of 10) | 8.8 | 8.8 |
-| Time per report | 52 s | 26 s |
-| Output tokens per report | ~10,000 | ~2,800 |
-| Cost of 20 reports at API prices | $0.27 | $2.92 |
+| | Claude Haiku | Claude Sonnet | Claude Opus |
+|---|---|---|---|
+| Passed (judge) | 10/20 | 14/20 | 12/20 |
+| Failed only on a newer rule (D2) | 2 | 0 | 0 |
+| Failed on a real error | 8 | 6 | 8 |
+| Passed the code checks | 19/20 | 19/20 | 20/20 |
+| A, claims covered (of 40) | 36.5 | 39.0 | 40.0 |
+| B, price levels and timeframes (of 25) | 19.5 | 20.9 | 21.3 |
+| C, conviction (of 10) | 9.5 | 9.6 | 10.0 |
+| D, form, scored in code (of 15) | 14.2 | 14.1 | 13.7 |
+| E, style (of 10) | 8.8 | 8.8 | 8.5 |
+| Time per report | 52 s | 26 s | 37 s |
+| Output tokens per report | ~10,000 | ~2,800 | ~3,100 |
+| Cost of 20 reports at API prices | $0.27 | $2.92 | $6.28 |
 
-| Failing code (number of reports) | Haiku | Sonnet |
-|---|---|---|
-| K1a invented number | 3 | 1 |
-| K3 missing label | 1 | 1 |
-| K3e label not first | 0 | 1 |
-| K4 forbidden content | 5 | 4 |
-| K4 (D2) misheard name or number repeated | 2 | 0 |
+| Failing code (number of reports) | Haiku | Sonnet | Opus |
+|---|---|---|---|
+| K1a invented number | 3 | 1 | 4 |
+| K3 missing label | 1 | 1 | 0 |
+| K3e label not first | 0 | 1 | 0 |
+| K4 forbidden content | 5 | 4 | 4 |
+| K4 (D2) misheard name or number repeated | 2 | 0 | 0 |
 
-Sonnet is better on content: fewer invented numbers and no misheard names
-repeated, and it passed three cases twice that Haiku failed at least once.
-Haiku costs a tenth as much but takes twice as long and writes almost four
-times as many output tokens. Both models failed the same hard cases (a video
-without a transcript 2/2, a cycle post and a mocking quote 1/2 each), which
-points at the writing rules or the reference rather than the model. With two
-runs per case and one judge verdict per report, a 10 vs 14 difference is close
-to the noise; it is a direction, not a ranking.
+Opus covers the most: every claim in every positive case (A 40.0 of 40), the
+best price levels and conviction, and no form failures in code. Its failures
+are all "invented numbers", and all four are exact chart readings (a
+percentage with its candle count, a price to four decimals). Nemotron has
+called chart readings invented before, so some of these are probably the
+judge, not the report; a person has not checked them yet. Sonnet has the
+best pass rate at half the cost of Opus. Haiku costs a tenth of Sonnet but is
+twice as slow and repeated misheard names twice.
+
+All three failed the same hard cases (a video without a transcript 2/2, a
+cycle post and a mocking quote 1/2 each), which points at the writing rules
+or the reference rather than the model. With two runs per case and one judge
+verdict per report, a 10 / 12 / 14 spread is within the noise; it is a
+direction, not a ranking.
 
 ## Prompt injection
 
