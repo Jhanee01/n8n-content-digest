@@ -237,3 +237,7 @@ docker-compose.yml               local n8n with one command
 eval/                            evals: runner, scorer, LLM judge, red team, demo cases
 README.hu.md                     this README in Hungarian
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE). It covers this repository's own workflow, prompts and code; n8n and the libraries used keep their own licenses.
