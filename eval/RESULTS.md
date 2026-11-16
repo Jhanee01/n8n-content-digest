@@ -107,9 +107,10 @@ reports were judged once by Nemotron with the same judge prompt.
 
 | | Claude Haiku | Claude Sonnet | Claude Opus |
 |---|---|---|---|
-| Passed (judge) | 10/20 | 14/20 | 12/20 |
+| **Passed, chart readings checked** | **11/20** | **15/20** | **16/20** |
+| Passed (judge, as given) | 10/20 | 14/20 | 12/20 |
 | Failed only on a newer rule (D2) | 2 | 0 | 0 |
-| Failed on a real error | 8 | 6 | 8 |
+| Failed on a real error (after the check) | 7 | 5 | 4 |
 | Passed the code checks | 19/20 | 19/20 | 20/20 |
 | A, claims covered (of 40) | 36.5 | 39.0 | 40.0 |
 | B, price levels and timeframes (of 25) | 19.5 | 20.9 | 21.3 |
@@ -122,26 +123,37 @@ reports were judged once by Nemotron with the same judge prompt.
 
 | Failing code (number of reports) | Haiku | Sonnet | Opus |
 |---|---|---|---|
-| K1a invented number | 3 | 1 | 4 |
+| K1a invented number (judge / after the check) | 3 / 2 | 1 / 0 | 4 / 0 |
 | K3 missing label | 1 | 1 | 0 |
 | K3e label not first | 0 | 1 | 0 |
 | K4 forbidden content | 5 | 4 | 4 |
 | K4 (D2) misheard name or number repeated | 2 | 0 | 0 |
 
-Opus covers the most: every claim in every positive case (A 40.0 of 40), the
-best price levels and conviction, and no form failures in code. Its failures
-are all "invented numbers", and all four are exact chart readings (a
-percentage with its candle count, a price to four decimals). Nemotron has
-called chart readings invented before, so some of these are probably the
-judge, not the report; a person has not checked them yet. Sonnet has the
-best pass rate at half the cost of Opus. Haiku costs a tenth of Sonnet but is
-twice as slow and repeated misheard names twice.
+**The chart check.** Nemotron failed seven reports for an "invented
+number" that came from a chart. Each was checked against the image the
+report was written from: six numbers are on the image (a FRED balance-sheet
+value, a CoinMarketCap price, market cap and rank, a TradingView measuring
+tool's +1135.67% over 265 candles, two horizontal levels), so those verdicts
+were the judge's mistake. One was a real misreading (Haiku wrote 6.52 for a
+level labelled 8.52). One Haiku K1a was not about a chart and was not
+checked. None of the corrected reports had another failing code, so the
+corrected pass counts are 11 / 15 / 16.
+
+Opus is the most complete: every claim in every positive case (A 40.0 of
+40), the best price levels and conviction, no form failures in code, and
+after the chart check the best pass rate (16/20), at about twice the cost of
+Sonnet. Sonnet is close (15/20) and the fastest. Haiku costs a tenth of
+Sonnet but is twice as slow, repeated misheard names twice and misread a
+chart level once.
 
 All three failed the same hard cases (a video without a transcript 2/2, a
 cycle post and a mocking quote 1/2 each), which points at the writing rules
 or the reference rather than the model. With two runs per case and one judge
-verdict per report, a 10 / 12 / 14 spread is within the noise; it is a
-direction, not a ranking.
+verdict per report, an 11 / 15 / 16 spread is a direction, not a ranking.
+
+The judge lesson: Nemotron treats an exact number read off an image as
+invented. The next judge-prompt change should say that a number is K1a only
+if it is neither in the transcript nor on any image.
 
 ## Prompt injection
 
