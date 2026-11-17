@@ -155,6 +155,34 @@ The judge lesson: Nemotron treats an exact number read off an image as
 invented. The next judge-prompt change should say that a number is K1a only
 if it is neither in the transcript nor on any image.
 
+## Judge fix: numbers read off a chart (November 2026)
+
+The chart check above showed that Nemotron sees the images but misreads
+small print (a toolbar, a watchlist, a measuring tool), and then calls an
+exact chart reading invented. The judge prompt already said chart numbers
+are not invented, so repeating the rule would not help. The way it judges
+changed instead:
+
+- For a number the report takes from an image, an "invented number" (K1a)
+  now counts only if the judge names the image and writes down the
+  **different** number it reads there.
+- If it cannot read that spot, the sentence goes on a **to-check list**: not
+  a failure, a person looks at it. `judge.py` also moves an image K1a with
+  no number written down to that list.
+- Invented numbers that do not come from an image fail as before.
+
+| Measurement | Before | After |
+|---|---|---|
+| Planted errors caught (incl. an invented chart level) | 12/12 | 11/11 (+1 not measurable) |
+| Failures on the untouched reports in that test | 5 | 3 |
+| The 7 disputed chart verdicts that still fail | 7 | 1 |
+
+The one that still fails is a misreading by the judge (it read a follower
+count in the corner instead of the price). The trade-off: a real chart
+misreading (Haiku wrote 6.52 for a level labelled 8.52) is now on the
+to-check list instead of failing, so a pass count must be read together with
+the to-check count, and someone has to look at that list.
+
 ## Prompt injection
 
 | System | Attacks | Held | Report flagged the instruction |
