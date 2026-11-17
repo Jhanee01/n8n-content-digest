@@ -427,13 +427,27 @@ def e_verdict(e: dict, report_text: str) -> dict:
             "ervenytelen": len(felf_all) - len(felf) + len(szak_all) - len(szak)}
 
 
+def seen_number(seen) -> bool:
+    """Leírta-e a bíró, milyen számot lát a képen (K1a képről csak ezzel érvényes)."""
+    text = str(seen or "").strip().lower()
+    return any(ch.isdigit() for ch in text) and "olvashatatlan" not in text
+
+
 def final_score(ref: dict, code: score.Eredmeny, verdict: dict, report_text: str) -> dict:
     tilos = ref.get("tilos") or []
 
     valid, invalid = [], []
+    # Képről leolvasott szám, amit a bíró nem tud elolvasni: nem bukás, ember nézi
+    # meg (2026-11-16: a Nemotron hétből hat chart-számot tévesen kitaláltnak vett).
+    check = [x for x in verdict.get("ellenorizendo") or []
+             if isinstance(x, dict) and quote_ok(x.get("idezet") or "", report_text)]
     for k in verdict.get("kizaro") or []:
         if k.get("kod") not in KIZARO_KODOK or not quote_ok(k.get("idezet") or "", report_text):
             invalid.append(k)
+            continue
+        if k["kod"] == "K1a" and (k.get("kep") or "").strip() and not seen_number(k.get("latott")):
+            check.append({"idezet": k.get("idezet"), "kep": k.get("kep"),
+                          "indok": "K1a képről, a bíró nem írta le, mit lát: " + (k.get("indok") or "")})
             continue
         if k["kod"] == "K4" and isinstance(k.get("tilos_index"), int) and 0 <= k["tilos_index"] < len(tilos):
             item = tilos[k["tilos_index"]]
@@ -491,6 +505,7 @@ def final_score(ref: dict, code: score.Eredmeny, verdict: dict, report_text: str
         "kizaro_hibak": all_fail,
         "kizaro_kodok": sorted({f["kod"] for f in all_fail}),
         "ervenytelen_itelet": invalid,
+        "ellenorizendo": check,
         "e": e,
         "pont": pont,
         "tartalom": round(sum(pont[k] or 0 for k in "ABC"), 1) if not negativ else None,
@@ -642,6 +657,7 @@ def aggregate(records: list[dict]) -> dict:
         "biralat": len(records),
         "hibas_biralat": len(records) - len(ok),
         "ervenytelen_itelet": sum(len(r["eredmeny"]["ervenytelen_itelet"]) for r in ok),
+        "ellenorizendo": sum(len(r["eredmeny"].get("ellenorizendo") or []) for r in first),
         "gondolkodas_nelkul": sum(r.get("gondolkodott") is False for r in ok),
         "koltseg_usd": round(sum(r.get("koltseg_usd") or 0 for r in records), 2),
         "esetek": cases, "osszesen": total, "kizaro_kodok": codes, "biro_zaja": noise,
@@ -655,7 +671,8 @@ def summarize(records: list[dict], out_dir: Path) -> str:
              f"Bíró: {agg['biro']} ({ids}), prompt-lenyomat `{agg['prompt_lenyomat']}`. "
              f"Bírálatok: {agg['biralat']}, ebből hibás: {agg['hibas_biralat']}; "
              f"érvénytelen (idézet nélküli) kizáró ítélet: {agg['ervenytelen_itelet']}; "
-             f"gondolkodás nélkül ítélt: {agg['gondolkodas_nelkul']}. "
+             f"gondolkodás nélkül ítélt: {agg['gondolkodas_nelkul']}; "
+             f"képről leolvasott szám, ember ellenőrzi: {agg['ellenorizendo']}. "
              f"Költség API-áron: ${agg['koltseg_usd']:.2f}.", ""]
     if len(agg["modell_azonositok"]) > 1:
         lines += ["**Figyelem: a mappában több modell ítéletei keverednek.**", ""]
@@ -732,6 +749,8 @@ def summarize(records: list[dict], out_dir: Path) -> str:
                 extra = f" [a bíró kódjai: {'+'.join(h['kodok'])}]" if len(h["kodok"]) > 1 else ""
                 what = f"„{h['idezet'][:110]}”" if h.get("idezet") else "; ".join(h.get("reszlet") or [])[:110]
                 lines.append(f"  - {h['kod']}{extra}: {what}")
+            for x in e.get("ellenorizendo") or []:
+                lines.append(f"  - ellenőrizendő ({x.get('kep') or '?'}): „{(x.get('idezet') or '')[:110]}”")
             for x in e["e"]["felfujas"]:
                 lines.append(f"  - E, felfújás: „{(x.get('idezet') or '')[:90]}”")
             if e["e"]["nyers_szakszavak"]:

@@ -40,6 +40,15 @@ szám). Ha ugyanaz a hiba több helyen is megjelenik (a Lényegben és az
   mielőtt kifogásolod. Az sem kizáró hiba, ha a jelentés egy valódi chartot és
   helyes számait rossz időbélyeghez vagy képkockához köti (pl. 11:32 a 12:16
   helyett): a tartalom nem kitalált.
+  **Grafikonról vagy képkockáról származó szám** (a jelentés képhez,
+  grafikonhoz, képernyőhöz köti, vagy a mondat mellett képlink áll): K1a-t
+  csak akkor adhatsz rá, ha a kép azon részét el tudod olvasni, és ott
+  **más szám áll**. Ilyenkor a `kep` mezőbe írd a kép útvonalát, a `latott`
+  mezőbe azt a számot, amit a képen ténylegesen olvasol. Ha a képen a hely
+  apró, elmosódott, vagy nem találod: az nem K1a, hanem az `ellenorizendo`
+  listába tedd (idézettel, a kép útvonalával), és ember nézi meg. Kis
+  betűs felirat (fejléc, eszköztár, mérőeszköz, watchlist) gyakran nehezen
+  olvasható: kétes esetben `ellenorizendo`, ne K1a.
 - **K1b, megfordított vagy kitalált irány:** a jelentés más irányt tulajdonít
   a szerzőnek, mint amit mond (pl. „shortol”, ahol vesz; „bikás”, ahol
   kivár), vagy irányt tulajdonít neki, ahol nem foglal állást. Ha az irány
@@ -110,7 +119,11 @@ számít. Ha nincs ilyen, üres lista.
 
 {
   "kizaro": [
-    {"kod": "K1a|K1b|K1c|K2|K4|K5", "tilos_index": null, "idezet": "...", "indok": "..."}
+    {"kod": "K1a|K1b|K1c|K2|K4|K5", "tilos_index": null, "idezet": "...", "indok": "...",
+     "kep": "", "latott": ""}
+  ],
+  "ellenorizendo": [
+    {"idezet": "...", "kep": "...", "indok": "..."}
   ],
   "allitasok": [
     {"id": "a1", "lefedve": true, "szintek_jo": 0, "idotav_jo": null, "meggyozodes_jo": true, "indok": "..."}
@@ -124,6 +137,10 @@ számít. Ha nincs ilyen, üres lista.
 
 A `szo` a szakszó pontosan úgy, ahogy a jelentésben áll; az `idezet` a
 mondat, amelyben szerepel.
+
+A `kep` és a `latott` csak képről származó számra adott K1a-nál kitöltött,
+máskor üres szöveg. Az `ellenorizendo` nem kizáró hiba; ha nincs ilyen, üres
+lista.
 
 A `tilos_index` csak K4-nél szám, máskor null. Az `indok` legyen rövid, egy
 mondat. Az `allitasok` listában a válaszkulcs minden állítása szerepeljen,
