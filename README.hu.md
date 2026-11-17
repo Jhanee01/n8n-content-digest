@@ -213,6 +213,27 @@ szabályok, ugyanaz a bíró), a prompt injectiont ezen a workflow-n. Részletek
 | Jelentésíró modell, átment (Nemotron, 20-20 jelentés) | Opus 16/20 (a legteljesebb, kétszer drágább), Sonnet 15/20, Haiku 11/20 (tizedannyiba kerül, kétszer lassabb); a grafikonról leolvasott számok a képekkel összevetve |
 | Kivédett prompt-injection támadás | 16/16 |
 
+**Melyik modell írja a jelentést.** Ugyanaz a 10 eset, modellenként kétszer
+megírva a mostani írási szabályokkal, a Nemotron egyszer bírálta. A
+grafikonról vett számokat, amelyeket a bíró kitaláltnak ítélt, a képekkel
+összevetettük (a 7-ből 6 rajta volt a képen).
+
+| | Claude Haiku | Claude Sonnet | Claude Opus |
+|---|---|---|---|
+| **Átment, a grafikonos számok ellenőrzése után** | **11/20** | **15/20** | **16/20** |
+| Átment (a bíró ítélete szerint) | 10/20 | 14/20 | 12/20 |
+| Valódi hiba miatt bukott (az ellenőrzés után) | 7 | 5 | 4 |
+| Kódos ellenőrzésen átment | 19/20 | 19/20 | 20/20 |
+| A, lefedett állítások (40-ből) | 36,5 | 39,0 | 40,0 |
+| B, árszintek és időtávok (25-ből) | 19,5 | 20,9 | 21,3 |
+| C, meggyőződés (10-ből) | 9,5 | 9,6 | 10,0 |
+| D, forma, kóddal pontozva (15-ből) | 14,2 | 14,1 | 13,7 |
+| E, stílus (10-ből) | 8,8 | 8,8 | 8,5 |
+| Idő jelentésenként | 52 mp | 26 mp | 37 mp |
+| 20 jelentés ára API-árakon | 0,27 $ | 2,92 $ | 6,28 $ |
+
+Esetenként két futással ez irányt mutat, nem rangsort.
+
 ## Részletek
 
 - **Miért nem RSS:** a YouTube csatorna-RSS-e 2026 októbere óta 404-et ad, ezért

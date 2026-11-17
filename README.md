@@ -209,6 +209,27 @@ rules, same judge); the injection row on this workflow. Details in
 | Report writer, passed (Nemotron, 20 reports each) | Opus 16/20 (most complete, twice the cost), Sonnet 15/20, Haiku 11/20 (a tenth of the cost, twice as slow); chart readings checked against the images |
 | Prompt-injection attacks held | 16/16 |
 
+**Which model writes the reports.** The same 10 cases, written twice by each
+model with the current writing rules, judged once by Nemotron. Chart numbers
+the judge called invented were checked against the images (6 of 7 were on
+the image).
+
+| | Claude Haiku | Claude Sonnet | Claude Opus |
+|---|---|---|---|
+| **Passed, chart readings checked** | **11/20** | **15/20** | **16/20** |
+| Passed (judge, as given) | 10/20 | 14/20 | 12/20 |
+| Failed on a real error (after the check) | 7 | 5 | 4 |
+| Passed the code checks | 19/20 | 19/20 | 20/20 |
+| A, claims covered (of 40) | 36.5 | 39.0 | 40.0 |
+| B, price levels and timeframes (of 25) | 19.5 | 20.9 | 21.3 |
+| C, conviction (of 10) | 9.5 | 9.6 | 10.0 |
+| D, form, scored in code (of 15) | 14.2 | 14.1 | 13.7 |
+| E, style (of 10) | 8.8 | 8.8 | 8.5 |
+| Time per report | 52 s | 26 s | 37 s |
+| Cost of 20 reports at API prices | $0.27 | $2.92 | $6.28 |
+
+With two runs per case this is a direction, not a ranking.
+
 ## Details
 
 - **Why not RSS:** YouTube's channel RSS feeds have returned 404 since October
